@@ -26,4 +26,4 @@ Ce dépôt n'inclut pas encore l'application ni une procédure de déploiement. 
 
 ## Suivi
 
-Le suivi choisi est GitHub Projects, projet « Skkup V2 ». Son activation distante reste en attente de création et de relecture vérifiable. Voir [l'état du suivi](docs/project-management/github-project.md).
+Le suivi choisi est GitHub Projects, projet « Skkup V2 ». Le Project d'organisation a été créé et relu; sa vue par défaut montre `Todo`, `In Progress` et `Done`. La couverture des issues sera ajoutée après validation de la conception. Voir [l'état du suivi](docs/project-management/github-project.md).

@@ -25,9 +25,11 @@ PY
 export DB_HOST_PORT="$db_port" API_HOST_PORT="$api_port" WEB_PORT="$web_port"
 
 compose=(docker compose --env-file /dev/null --project-name "$project" --file compose.yaml)
+stage="initialization"
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
+    echo "Scaffold smoke failed during: $stage (exit $status)" >&2
     "${compose[@]}" ps --all || true
     "${compose[@]}" logs || true
   fi
@@ -36,8 +38,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
+stage="Compose build and startup"
 "${compose[@]}" up --detach --build
-"${compose[@]}" wait migrate
 ready=false
 # A fresh Next.js production server can need over a minute on a cold GitHub
 # runner after the image is built. Poll until a wall-clock deadline, and bound
@@ -56,6 +58,7 @@ PY
 }
 
 deadline=$((SECONDS + 180))
+stage="service readiness"
 while (( SECONDS < deadline )); do
   if run_probe "${compose[@]}" exec -T db pg_isready -t 2 -U skkup_v2 -d skkup_v2 \
     && run_probe "${compose[@]}" exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)" \
@@ -71,14 +74,17 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
+stage="Alembic baseline assertion"
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
 test "$revision" = "0001_empty_baseline"
 
+stage="Alembic downgrade and empty-schema assertions"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini downgrade base
 version_rows="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT COUNT(*) FROM alembic_version;')"
 product_tables="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name <> 'alembic_version';")"
 test "$version_rows" = "0"
 test "$product_tables" = "0"
+stage="Alembic re-upgrade assertion"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini upgrade head
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
 test "$revision" = "0001_empty_baseline"

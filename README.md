@@ -140,9 +140,18 @@ configuré ni requis.
 
 Les documents canoniques commencent dans [docs/README.md](docs/README.md).
 
+## Assets des tickets à gratter
+
+Les visuels fournis pour les tickets à gratter sont disponibles comme ressources publiques du frontend :
+
+- Ticket classique : `/images/tickets/scratch-classic.png` (PNG RGBA, 1774 × 887 px).
+- Ticket premium : `/images/tickets/scratch-premium.png` (PNG RGBA, 1774 × 887 px).
+
+Ils sont servis tels que fournis, avec leur canal alpha. Le frontend peut les afficher dans un élément image responsive, en conservant le ratio d’origine (`width: 100%; height: auto`). Ces fichiers sont des éléments visuels uniquement : le parcours de grattage, les probabilités et l’attribution des récompenses ne sont pas implémentés par cet ajout.
+
 ## Limites actuelles
 
-Ce dépôt contient uniquement le scaffold technique et n'inclut pas encore les fonctionnalités produit ni une procédure de déploiement. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration de données, aucune copie d'actif et aucune création de secret. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. Les références visuelles, rendus navigateur, état d'exécution et publication effective des routes ou médias ne sont pas validés par l'inventaire statique.
+Ce dépôt contient uniquement le scaffold technique et n'inclut pas encore les fonctionnalités produit ni une procédure de déploiement. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration de données ni création de secret. Il interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. Les références visuelles, rendus navigateur, état d'exécution et publication effective des routes ou médias ne sont pas validés par l'inventaire statique.
 
 Le cadrage de conception est `approved` depuis le 2026-11-16, après revue Produit, QA, audit indépendant et scan des marqueurs. Cette approbation autorise la planification des lots; elle ne certifie pas une application V2 ni l'exécution de tests ou contrôles visuels. Les lots doivent conserver leurs préconditions : comparaison de rendus et responsive/contrastes mesurés, tests V2, tests négatifs d’accès Admin côté serveur, preuve de droits avant copie de médias et décisions données/production/publication avant release.
 

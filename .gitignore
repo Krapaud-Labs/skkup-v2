@@ -1,3 +1,30 @@
 .codex/
 AGENTS.md
 .context-manifest.tsv
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# Node and Next.js generated files
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts.tmp
+frontend/tsconfig.tsbuildinfo
+
+# General build output
+dist/
+build/

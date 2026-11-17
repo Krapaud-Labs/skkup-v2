@@ -39,17 +39,35 @@ trap cleanup EXIT
 "${compose[@]}" up --detach --build
 "${compose[@]}" wait migrate
 ready=false
-for attempt in {1..30}; do
-  if "${compose[@]}" exec -T db pg_isready -U skkup_v2 -d skkup_v2 >/dev/null 2>&1 \
-    && "${compose[@]}" exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)" >/dev/null 2>&1 \
-    && "${compose[@]}" exec -T web node -e "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" >/dev/null 2>&1; then
+# A fresh Next.js production server can need over a minute on a cold GitHub
+# runner after the image is built. Poll until a wall-clock deadline, and bound
+# each probe so an unresponsive service cannot leave this script hanging.
+run_probe() {
+  python3 - "$@" <<'PY'
+import subprocess
+import sys
+
+try:
+    subprocess.run(sys.argv[1:], check=True, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=4)
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    sys.exit(1)
+PY
+}
+
+deadline=$((SECONDS + 180))
+while (( SECONDS < deadline )); do
+  if run_probe "${compose[@]}" exec -T db pg_isready -t 2 -U skkup_v2 -d skkup_v2 \
+    && run_probe "${compose[@]}" exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)" \
+    && run_probe "${compose[@]}" exec -T web node -e "fetch('http://127.0.0.1:3000/', {signal: AbortSignal.timeout(2500)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
     ready=true
     break
   fi
-  if [ "$attempt" -lt 30 ]; then sleep 2; fi
+  remaining=$((deadline - SECONDS))
+  if (( remaining > 0 )); then sleep "$((remaining < 2 ? remaining : 2))"; fi
 done
 if [ "$ready" != true ]; then
-  echo "Scaffold services did not become ready within 60 seconds" >&2
+  echo "Scaffold services did not become ready within 180 seconds" >&2
   exit 1
 fi
 

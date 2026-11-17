@@ -120,7 +120,9 @@ revue de dépendances. Le smoke test construit et démarre les trois services su
 un nom de projet Compose et des ports hôtes temporaires uniques; il teste les
 healthchecks et le cycle Alembic, puis supprime uniquement son projet et son
 volume jetable avec `down --volumes`. Il requiert Docker Compose et peut prendre
-le temps d'un build initial.
+le temps d'un build initial. La boucle de readiness a une échéance de 180
+secondes; chaque sonde est elle aussi bornée afin que le smoke ne reste pas
+bloqué sur un service qui ne répond plus.
 
 La CI lance ces contrôles sur une pull request vers `dev` ou manuellement avec
 `workflow_dispatch`. `concurrency` annule un ancien run du même workflow et de

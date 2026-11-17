@@ -14,7 +14,7 @@ Le lot 3 ajoute uniquement le scaffold technique V2; les fonctionnalités Viewer
 | Q-ISSUE-3-02 | Le workflow CI manquait concurrence/annulation, déclenchement manuel et garde preflight/sécurité exigés par la politique projet; `commands.test` n'était pas configurée. | Workflow doté de `concurrency`, `workflow_dispatch`, actions épinglées, scripts preflight/sécurité/smoke et commandes de profil vérifiées. QA passe les scripts, la configuration YAML et le smoke isolé. | verified |
 | Q-ISSUE-3-03 | Les règles Git ignore ne couvraient pas les environnements locaux, caches Python et sorties Next.js du scaffold. | `.gitignore` étendu; QA vérifie que `.env`/`.env.local`, venv, caches, `node_modules` et `.next` sont ignorés et que `.env.example` reste admissible. | verified |
 
-La CI GitHub distante n'a pas encore été exécutée à ce point de contrôle et reste une porte de livraison avant fusion. Ces contrôles ne constituent pas des tests de fonctionnalités produit. Les autres risques de conception restent dans `docs/project-management/decision-log.md` et `docs/security/threat-model.md`.
+La première CI distante a échoué dans le smoke après le démarrage différé du frontend, tandis que le build et l'API/DB réussissaient. Le smoke attend maintenant la readiness jusqu'à une échéance murale de 180 secondes et borne séparément chaque sonde avec le module standard `subprocess` de Python, sans dépendre d'une commande `timeout` absente de macOS. Le prochain run doit confirmer la correction avant fusion. Ces contrôles ne constituent pas des tests de fonctionnalités produit. Les autres risques de conception restent dans `docs/project-management/decision-log.md` et `docs/security/threat-model.md`.
 
 ## Statuts futurs
 

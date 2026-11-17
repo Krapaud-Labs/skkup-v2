@@ -1,0 +1,12 @@
+.git
+.github
+.codex
+.venv
+__pycache__
+*.py[cod]
+.env
+.env.*
+!.env.example
+docs
+extension
+CHANGE-REQUEST-*

@@ -27,17 +27,15 @@ type Raffle = Readonly<{
   ticketsDistribues: number | null;
   gagnantsCount: number | null;
   lots: RaffleLot[];
-  drawAvailability: "not_implemented";
 }>;
 type RafflePage = Readonly<{
   items: Raffle[];
   total: number;
   page: number;
   limit: number;
-  availability: Readonly<{ draws: "not_implemented"; tickets: "not_implemented" }>;
 }>;
 type AuditEvent = Readonly<{ id: string; action: string; actor: Readonly<{ id: string; pseudo: string }>; createdAt: string }>;
-type RaffleHistory = Readonly<{ items: AuditEvent[]; draws: null; availability: Readonly<{ draws: "not_implemented" }> }>;
+type RaffleHistory = Readonly<{ items: AuditEvent[] }>;
 type LotDraft = {
   nom: string;
   valeurEstimee: string;
@@ -54,7 +52,8 @@ type RaffleDraft = {
   engagementGraine: string;
   lots: LotDraft[];
 };
-type View = "list" | "detail" | "edit";
+type View = "list" | "detail" | "edit" | "draw";
+type PublicDrawResult = { id: string; titre: string; nombreParticipants: number; resultatPublieAt: string | null; gagnants: Array<{ rang: number; lotId: string; lotNom: string; ticketId: string; pseudo: string }> };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
@@ -139,6 +138,9 @@ export function AdminRaffleManager({ open, onClose }: Readonly<{ open: boolean; 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [operatorSeed, setOperatorSeed] = useState("");
+  const [publicEntropy, setPublicEntropy] = useState("");
+  const [drawResult, setDrawResult] = useState<PublicDrawResult | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
 
@@ -218,6 +220,28 @@ export function AdminRaffleManager({ open, onClose }: Readonly<{ open: boolean; 
     setView("edit");
   };
 
+  const beginDraw = () => {
+    setOperatorSeed(""); setPublicEntropy(""); setDrawResult(null); setError(""); setNotice(""); setView("draw");
+  };
+
+  const executeDraw = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      await request(`/admin/raffles/${encodeURIComponent(selected.id)}/draw`, {
+        method: "POST", body: JSON.stringify({ graineExploitant: operatorSeed, entropiePublique: publicEntropy }),
+      });
+      setOperatorSeed(""); setPublicEntropy("");
+      const publicResult = await request<PublicDrawResult>(`/raffles/${encodeURIComponent(selected.id)}/result`);
+      setDrawResult(publicResult); setNotice("Tirage exécuté. Les résultats publics ont été chargés.");
+      await openDetails(selected);
+      setView("draw");
+    } catch (drawError) {
+      setError(drawError instanceof Error ? drawError.message : "Impossible d’exécuter le tirage.");
+    } finally { setSaving(false); }
+  };
+
   const updateDraft = (key: keyof RaffleDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
   const updateLot = (index: number, key: keyof LotDraft, value: string) => setDraft((current) => ({
     ...current,
@@ -281,11 +305,11 @@ export function AdminRaffleManager({ open, onClose }: Readonly<{ open: boolean; 
       <section className="vd-modal admin-modal admin-raffle-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="admin-raffle-title" data-dashboard-modal>
         <button ref={closeButton} className="vd-modal-close" onClick={onClose} aria-label="Fermer">×</button>
         <p className="vd-eyebrow">CONFIGURATION & PARTENAIRES</p>
-        <h2 id="admin-raffle-title">{view === "list" ? "Tirages & lots" : view === "edit" ? selected ? "Modifier le tirage" : "Créer un tirage" : selected?.titre ?? "Détail du tirage"}</h2>
+        <h2 id="admin-raffle-title">{view === "list" ? "Tirages & lots" : view === "edit" ? selected ? "Modifier le tirage" : "Créer un tirage" : view === "draw" ? "Exécution du tirage" : selected?.titre ?? "Détail du tirage"}</h2>
         {view === "list" ? <>
           <p className="admin-raffle-intro">Prépare les tirages et leurs lots dans l’univers Skkup.</p>
           <div className="admin-raffle-actions"><span>{raffleCount} tirage{total > 1 ? "s" : ""}</span><button className="vd-text-button" onClick={beginCreate}>Nouveau tirage <span aria-hidden="true">＋</span></button></div>
-          <div className="admin-raffle-limit" role="note"><span aria-hidden="true">✦</span><span>Le lancement d’un tirage et l’attribution des tickets de participation seront ajoutés dans une étape séparée. Les tickets à gratter CLASSIC/PREMIUM sont distincts.</span></div>
+          <div className="admin-raffle-limit" role="note"><span aria-hidden="true">✦</span><span>Configure les lots, suis les participations et exécute le tirage à la date prévue. Une participation à 2 500 points reste distincte des tickets à gratter CLASSIC/PREMIUM.</span></div>
           {error && <div className="admin-state admin-state-error" role="alert"><span>{error}</span><button className="vd-text-button" onClick={() => void loadPage(page)}>Réessayer</button></div>}
           {loading ? <p className="vd-empty" role="status">Chargement des tirages…</p> : items.length ? <div className="admin-raffle-list" aria-label="Tirages configurés">
             {items.map((raffle) => <button className="admin-raffle-row" key={raffle.id} onClick={() => void openDetails(raffle)} aria-haspopup="dialog">
@@ -302,11 +326,24 @@ export function AdminRaffleManager({ open, onClose }: Readonly<{ open: boolean; 
           {error && <div className="admin-state admin-state-error" role="alert"><span>{error}</span><button className="vd-text-button" onClick={() => void openDetails(selected)}>Réessayer</button></div>}
           {loading ? <p className="vd-empty" role="status">Chargement du détail…</p> : <div className="admin-raffle-detail-scroll">
             <div className="admin-raffle-summary"><span className={`admin-raffle-status ${selected.statut.toLowerCase()}`}>{statusLabel(selected.statut)}</span><p>{selected.description}</p><div><span>Ouverture<strong>{localDate(selected.dateOuverture)}</strong></span><span>Tirage prévu<strong>{localDate(selected.dateTirage)}</strong></span><span>Participations au tirage<strong>{selected.ticketsDistribues ?? "Non disponible"}</strong></span></div></div>
+            {selected.statut === "OUVERT" && new Date(selected.dateTirage).getTime() <= Date.now() && <button type="button" className="vd-modal-secondary" onClick={beginDraw}>Exécuter le tirage</button>}
             <section className="admin-raffle-lots" aria-labelledby="admin-raffle-lots-title"><header><h3 id="admin-raffle-lots-title">Lots & partenaires</h3><span>{selected.lots.length} référence{selected.lots.length > 1 ? "s" : ""}</span></header>{selected.lots.map((lot) => <article key={lot.id}><span className="admin-raffle-lot-gem" aria-hidden="true">✦</span><span><strong>{lot.nom}</strong><small>{lot.fournisseur}{lot.sponsor ? ` · ${lot.sponsor.nom}` : ""} · ×{lot.quantite}</small></span><b>{Number(lot.valeurEstimee).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</b></article>)}</section>
             <div className="admin-raffle-commitment"><span>Engagement SHA-256</span><code>{selected.engagementGraine ?? "Non renseigné"}</code><small>Le secret de tirage n’est jamais affiché dans cette interface.</small></div>
             <section className="admin-raffle-history" aria-labelledby="admin-raffle-history-title"><h3 id="admin-raffle-history-title">Historique de configuration</h3>{history.length ? history.slice(0, 6).map((event) => <article key={event.id}><span className="admin-audit-dot" aria-hidden="true"/><span><strong>{auditLabel(event.action)}</strong><small>{event.actor.pseudo} · {localDate(event.createdAt)}</small></span></article>) : <p>Aucun événement enregistré.</p>}</section>
           </div>}
-        </> : <form className="admin-raffle-form" onSubmit={(event) => void save(event)}>
+        </> : view === "draw" && selected ? <form className="admin-raffle-form admin-draw-form" onSubmit={(event) => void executeDraw(event)}>
+          <div className="admin-modal-actions admin-raffle-detail-actions"><button type="button" className="vd-text-button" onClick={() => setView("detail")}>← Détail du tirage</button></div>
+          <p className="admin-draw-explainer">Le tirage est irréversible. La graine secrète doit correspondre à l’engagement SHA-256 déjà publié. L’entropie publique est fournie manuellement, elle n’est pas générée par cette interface.</p>
+          <div className="admin-raffle-detail-scroll admin-raffle-form-scroll">
+            <label className="admin-form-field"><span>Graine exploitant <b>*</b></span><input type="password" required minLength={1} maxLength={512} autoComplete="new-password" value={operatorSeed} onChange={(event) => setOperatorSeed(event.target.value)} /><small>Secret vérifié côté serveur et jamais réaffiché après l’exécution.</small></label>
+            <label className="admin-form-field"><span>Entropie publique <b>*</b></span><textarea required minLength={1} maxLength={512} rows={3} value={publicEntropy} onChange={(event) => setPublicEntropy(event.target.value)} /><small>Saisis la source d’entropie publiée choisie pour ce tirage (1 à 512 caractères).</small></label>
+            {selected.engagementGraine && <div className="admin-raffle-commitment"><span>Engagement SHA-256 attendu</span><code>{selected.engagementGraine}</code></div>}
+          </div>
+          {error && <p className="admin-dialog-error" role="alert">{error}</p>}
+          {notice && <p className="admin-notice" role="status">{notice}</p>}
+          {drawResult && <section className="admin-draw-results" aria-label="Résultats publics du tirage"><p>{drawResult.nombreParticipants} participations · Résultat chargé depuis la route publique.</p>{drawResult.gagnants.map((winner) => <article key={`${winner.ticketId}-${winner.lotId}`}><span>#{winner.rang}</span><strong>{winner.pseudo}</strong><small>{winner.lotNom}</small></article>)}</section>}
+          <div className="admin-raffle-form-footer"><button type="button" className="admin-confirm-cancel" onClick={() => setView("detail")}>Annuler</button><button type="submit" className="vd-modal-secondary" disabled={saving || drawResult !== null}>{saving ? "Tirage en cours…" : drawResult ? "Tirage terminé" : "Exécuter et publier"}</button></div>
+        </form> : <form className="admin-raffle-form" onSubmit={(event) => void save(event)}>
           <div className="admin-modal-actions admin-raffle-detail-actions"><button type="button" className="vd-text-button" onClick={() => selected ? setView("detail") : setView("list")}>← Retour</button><span className="admin-form-required">Champs requis <b>*</b></span></div>
           {error && <p className="admin-dialog-error" role="alert">{error}</p>}
           <div className="admin-raffle-detail-scroll admin-raffle-form-scroll">

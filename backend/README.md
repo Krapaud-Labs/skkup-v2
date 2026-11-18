@@ -234,10 +234,77 @@ distincte pour supprimer un lot.
 
 La réponse de configuration du tirage ne renvoie que la configuration et
 l’engagement. Elle ne contient jamais la graine secrète ni les résultats;
-`ticketsDistribues` et `gagnantsCount` valent `null`, et la disponibilité du
-tirage ou des tickets reste `not_implemented`. Cette tranche ne comprend
-aucune route de tirage, ticket, participant ou gagnant; la participation
-Viewer et l’exécution du tirage restent dans l’issue #9.
+`ticketsDistribues` et `gagnantsCount` donnent les nombres persistés. Les
+champs `drawAvailability` et `ticketsAvailability`, ainsi que les agrégats
+`availability.draws`/`availability.tickets` de la liste, reflètent les états
+`scheduled`, `available`, `closed` ou `drawn`; une collection vide indique
+`unavailable`. L’historique renvoie les événements et l’audit du tirage avec
+`availability.draws` calculé depuis son état actuel.
+
+## Récompenses et tirages Viewer, issue #9
+
+Les tickets `reward_tickets` `CLASSIC` et `PREMIUM` sont exclusivement des
+tickets à gratter. Ils ne sont jamais des entrées de concours. Les
+participations achetées sont des `raffle_tickets` séparés, une par utilisateur
+et tirage comme dans V1.
+
+- `GET /me/scratch-cards` liste les droits de carte V1 non grattés; les
+  résultats ne sont jamais inclus. `POST /me/scratch-cards/{id}/prepare`
+  marque l’ouverture de la modale sans révéler de gain et
+  `POST /me/scratch-cards/{id}/scratch` applique le résultat une seule fois.
+- `GET /me/reward-tickets` liste l’inventaire disponible. Les mêmes routes
+  `/me/reward-tickets/{id}/prepare` et `/scratch` gèrent les tickets D-07.
+  `GET /me/scratch-history` expose les résultats effectivement révélés,
+  paginés, avec date, catégorie, gain et montant. Préparation et grattage
+  exigent une origine autorisée et une session; la persistance du résultat,
+  du crédit au ledger et des tickets éventuellement attribués est atomique.
+- CLASSIC applique les plages entières 0–29 rien, 30–44 +5, 45–54 +10,
+  55–59 +15 et 60–99 un nouveau ticket à gratter CLASSIC. Les valeurs sont
+  calculées par `secrets.randbelow(100)` et les tests injectent un RNG local,
+  non exposé par l’API.
+- PREMIUM reste verrouillé avant le RNG jusqu’à décision propriétaire sur le
+  résultat « accès au concours » à 1 %. Aucun résultat différé n’est inventé.
+- Les anciennes cartes de série gardent le tirage V1 70 % points, 25 % rien,
+  5 % ticket, avec gains 10/15/25/40 par palier (10 par défaut). Selon D-16,
+  le résultat ticket ajoute un ticket à gratter CLASSIC si un tirage est
+  ouvert, jamais une participation `raffle_tickets`; sans tirage ouvert, le
+  fallback points V1 s’applique.
+- `POST /me/raffles/{id}/register` exige une session et une origine autorisée.
+  Il débite 2 500 points via le ledger et crée la participation dans la même
+  transaction; une nouvelle tentative renvoie la participation déjà achetée
+  sans double débit. Une inscription par utilisateur/tirage est imposée par
+  contrainte unique.
+- `GET /me/raffle-tickets` fournit l’historique personnel paginé.
+  `GET /raffles`, `/raffles/{id}`, `/raffles/{id}/result` et
+  `/raffles/{id}/participants` fournissent les vues publiques. Le résultat et
+  la liste ne paraissent qu’après le tirage. Les gagnants sont identifiés par
+  pseudo et ticket; la liste publique contient uniquement les identifiants de
+  tickets, jamais d’e-mail ni d’identifiant utilisateur. La pagination des
+  participants suit V1: `page` commence à zéro, `taille` vaut 500 par défaut
+  et est limitée à 2 000.
+- `POST /admin/raffles/{id}/draw` exige Admin persistant et origine autorisée,
+  refuse une date non atteinte, vérifie l’engagement SHA-256 de la graine
+  exploitant, verrouille le tirage, puis écrit statut, gagnants, résultat et
+  audit en transaction. Les champs `graineExploitant` et `entropiePublique`
+  acceptent 1 à 512 caractères comme dans le DTO V1. L’interface Admin demande
+  ces valeurs; elle ne fabrique pas une prétendue entropie publique. Le seed
+  de résultat est SHA-256 de `graineExploitant:entropiePublique`; la sélection
+  déterministe V1 trie les tickets, échantillonne sans remise et rejette les
+  valeurs hors plage pour éviter un biais modulo. Le seed opérateur n’est pas
+  stocké; le seed dérivé public, l’empreinte de participants et les gagnants
+  permettent le rejeu.
+
+  Si une requête `draw` est répétée après le passage à `TIRE`, V2 renvoie le
+  résultat déjà enregistré uniquement lorsque graine exploitant et entropie
+  publique correspondent aux entrées du tirage persisté. L’engagement de la
+  graine est comparé en temps constant; la graine brute n’est pas conservée.
+  Des entrées différentes reçoivent 409 et ne changent aucun état. Aucun retry
+  ne relance le tirage. V1 répondait 409 à tout second appel; ce retry exact
+  est un durcissement V2.
+
+La migration `0010_scratch_and_raffle_draws` ajoute les états de grattage, les
+participations distinctes, gagnants et audit du tirage. Aucune promotion vers
+`main` ou activation publique n’est impliquée par ces routes.
 
 L’application web V2 actuelle ne contient pas de rendu de script JSON-LD ni de puits
 `dangerouslySetInnerHTML`. Si un rendu FAQ de ce type est ajouté, il devra

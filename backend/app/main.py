@@ -9,6 +9,16 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.cors import CORSMiddleware
 
+from app.admin.announcements import admin_router as admin_announcements_router
+from app.admin.announcements import public_router as public_announcements_router
+from app.admin.audit import router as admin_audit_router
+from app.admin.content import admin_router as admin_content_router
+from app.admin.content import public_router as public_content_router
+from app.admin.dashboard import router as admin_dashboard_router
+from app.admin.fraud_flags import router as admin_fraud_flags_router
+from app.admin.raffles import router as admin_raffles_router
+from app.admin.sponsors import router as admin_sponsors_router
+from app.admin.users import router as admin_users_router
 from app.auth.routes import router as auth_router
 from app.db import engine
 from app.points.routes import router as points_router
@@ -16,6 +26,16 @@ from app.points.routes import router as points_router
 app = FastAPI(title="Skkup V2 API", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(auth_router)
 app.include_router(points_router)
+app.include_router(admin_users_router)
+app.include_router(admin_audit_router)
+app.include_router(admin_dashboard_router)
+app.include_router(admin_fraud_flags_router)
+app.include_router(admin_raffles_router)
+app.include_router(admin_sponsors_router)
+app.include_router(admin_announcements_router)
+app.include_router(public_announcements_router)
+app.include_router(admin_content_router)
+app.include_router(public_content_router)
 allowed_origins = [
     origin.strip().rstrip("/")
     for origin in os.environ.get(
@@ -28,7 +48,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
 
@@ -51,11 +71,7 @@ def ready() -> dict[str, str]:
 @app.exception_handler(RequestValidationError)
 async def auth_validation_error(_: Request, error: RequestValidationError) -> JSONResponse:
     """Return a safe, useful validation message without echoing credentials."""
-    fields = {
-        str(item["loc"][-1])
-        for item in error.errors()
-        if len(item.get("loc", ())) > 1
-    }
+    fields = {str(item["loc"][-1]) for item in error.errors() if len(item.get("loc", ())) > 1}
     if "email" in fields:
         message = "Adresse email invalide."
     elif "pseudo" in fields:

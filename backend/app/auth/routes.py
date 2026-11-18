@@ -19,11 +19,12 @@ from app.auth.security import (
     COOKIE_SECURE,
     SESSION_SECONDS,
     create_session_token,
-    decode_session_token,
     hash_password,
     new_session_id,
     verify_password,
 )
+from app.auth.session import claims_for_request as _claims_for_request
+from app.auth.session import token_from_request as _token_from_request
 from app.db import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -75,36 +76,6 @@ def _rate_limit(request: Request, action: str) -> None:
                 headers={"Retry-After": str(retry_after)},
             )
         bucket.append(now)
-
-
-def _token_from_request(request: Request) -> str | None:
-    return request.cookies.get(COOKIE_NAME)
-
-
-def _claims_for_request(
-    request: Request, db: Session
-) -> tuple[dict | None, User | None, AuthSession | None]:
-    token = _token_from_request(request)
-    if not token:
-        return None, None, None
-    claims = decode_session_token(token)
-    if not claims:
-        return None, None, None
-    auth_session = db.get(AuthSession, claims["sid"])
-    if (
-        auth_session is None
-        or auth_session.user_id != claims["sub"]
-        or auth_session.revoked_at is not None
-        or auth_session.expires_at <= datetime.now(UTC)
-        or auth_session.session_version != claims["sessionVersion"]
-    ):
-        return None, None, None
-    user = db.get(User, claims["sub"])
-    # The account epoch also invalidates future extension credentials once
-    # that domain is implemented; issue #7 must enforce the same comparison.
-    if user is None or not user.active or user.session_version != claims["sessionVersion"]:
-        return None, None, None
-    return claims, user, auth_session
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -265,7 +236,9 @@ def change_password(
         )
     now = datetime.now(UTC)
     db.execute(
-        update(User).where(User.id == user.id).values(
+        update(User)
+        .where(User.id == user.id)
+        .values(
             password_hash=hash_password(payload.nouveauMotDePasse),
             session_version=User.session_version + 1,
         )

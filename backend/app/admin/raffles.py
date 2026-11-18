@@ -21,7 +21,15 @@ from pydantic import (
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.admin.models import Announcement, Raffle, RaffleLot, Sponsor
+from app.admin.models import (
+    Announcement,
+    Raffle,
+    RaffleDrawAudit,
+    RaffleLot,
+    RaffleTicket,
+    RaffleWinner,
+    Sponsor,
+)
 from app.admin.rate_limit import enforce_admin_rate_limit
 from app.auth.authorization import require_admin
 from app.auth.models import AdminAuditEvent, User
@@ -129,7 +137,26 @@ def _lot_view(lot: RaffleLot) -> dict[str, Any]:
     }
 
 
-def _raffle_view(raffle: Raffle) -> dict[str, Any]:
+def _raffle_view(raffle: Raffle, db: Session) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    opening = _utc(raffle.date_ouverture)
+    draw_date = _utc(raffle.date_tirage)
+    if raffle.statut == "TIRE":
+        draw_availability = "drawn"
+    elif raffle.statut == "CLOTURE":
+        draw_availability = "closed"
+    elif raffle.statut == "OUVERT" and now >= draw_date:
+        draw_availability = "available"
+    else:
+        draw_availability = "scheduled"
+
+    if raffle.statut == "OUVERT" and opening <= now < draw_date:
+        ticket_availability = "available"
+    elif raffle.statut == "OUVERT" and now < opening:
+        ticket_availability = "scheduled"
+    else:
+        ticket_availability = "closed"
+
     return {
         "id": raffle.id,
         "titre": raffle.titre,
@@ -138,10 +165,25 @@ def _raffle_view(raffle: Raffle) -> dict[str, Any]:
         "dateTirage": raffle.date_tirage,
         "statut": raffle.statut,
         "engagementGraine": raffle.engagement_graine,
-        "ticketsDistribues": None,
-        "gagnantsCount": None,
+        "ticketsDistribues": int(
+            db.scalar(
+                select(func.count())
+                .select_from(RaffleTicket)
+                .where(RaffleTicket.raffle_id == raffle.id)
+            )
+            or 0
+        ),
+        "gagnantsCount": int(
+            db.scalar(
+                select(func.count())
+                .select_from(RaffleWinner)
+                .where(RaffleWinner.raffle_id == raffle.id)
+            )
+            or 0
+        ),
         "lots": [_lot_view(lot) for lot in raffle.lots],
-        "drawAvailability": "not_implemented",
+        "drawAvailability": draw_availability,
+        "ticketsAvailability": ticket_availability,
     }
 
 
@@ -279,12 +321,24 @@ def list_raffles(
         .offset((page - 1) * limit)
         .limit(limit)
     ).all()
+    availability_values = [_raffle_view(raffle, db) for raffle in raffles]
+
+    def availability_summary(key: str) -> str:
+        states = [item[key] for item in availability_values]
+        for state in ("available", "scheduled", "drawn", "closed"):
+            if state in states:
+                return state
+        return "unavailable"
+
     return {
-        "items": [_raffle_view(raffle) for raffle in raffles],
+        "items": availability_values,
         "total": total,
         "page": page,
         "limit": limit,
-        "availability": {"draws": "not_implemented", "tickets": "not_implemented"},
+        "availability": {
+            "draws": availability_summary("drawAvailability"),
+            "tickets": availability_summary("ticketsAvailability"),
+        },
     }
 
 
@@ -292,14 +346,16 @@ def list_raffles(
 def get_raffle(raffle_id: str, request: Request, db: DatabaseSession) -> dict[str, Any]:
     actor = require_admin(request, db)
     enforce_admin_rate_limit(request, actor.id)
-    return _raffle_view(_load_raffle(db, raffle_id))
+    raffle = _load_raffle(db, raffle_id)
+    return _raffle_view(raffle, db)
 
 
 @router.get("/{raffle_id}/history")
 def raffle_history(raffle_id: str, request: Request, db: DatabaseSession) -> dict[str, Any]:
     actor = require_admin(request, db)
     enforce_admin_rate_limit(request, actor.id)
-    if db.get(Raffle, raffle_id) is None:
+    raffle = db.get(Raffle, raffle_id)
+    if raffle is None:
         raise HTTPException(status_code=404, detail="Tirage introuvable.")
     rows = db.execute(
         select(
@@ -314,6 +370,14 @@ def raffle_history(raffle_id: str, request: Request, db: DatabaseSession) -> dic
         .order_by(AdminAuditEvent.created_at.desc(), AdminAuditEvent.id.desc())
         .limit(100)
     ).all()
+    draw_audits = list(
+        db.scalars(
+            select(RaffleDrawAudit)
+            .where(RaffleDrawAudit.raffle_id == raffle_id)
+            .order_by(RaffleDrawAudit.executed_at.desc())
+            .limit(100)
+        )
+    )
     return {
         "items": [
             {
@@ -324,8 +388,17 @@ def raffle_history(raffle_id: str, request: Request, db: DatabaseSession) -> dic
             }
             for row in rows
         ],
-        "draws": None,
-        "availability": {"draws": "not_implemented"},
+        "draws": [
+            {
+                "executedAt": item.executed_at,
+                "algorithm": item.algorithm,
+                "resultHash": item.result_hash,
+                "seedCommitment": item.seed_commitment,
+                "participantsHash": item.participants_hash,
+            }
+            for item in draw_audits
+        ],
+        "availability": {"draws": _raffle_view(raffle, db)["drawAvailability"]},
     }
 
 
@@ -404,7 +477,7 @@ def create_raffle(payload: RaffleCreate, request: Request, db: DatabaseSession) 
         },
     )
     db.commit()
-    return _raffle_view(_load_raffle(db, raffle.id))
+    return _raffle_view(_load_raffle(db, raffle.id), db)
 
 
 @router.patch("/{raffle_id}")
@@ -424,7 +497,7 @@ def update_raffle(
         )
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
-        return _raffle_view(current)
+        return _raffle_view(current, db)
     previous = _audit_snapshot(current)
     draw_at = _utc(changes["dateTirage"]) if changes.get("dateTirage") else current.date_tirage
     if draw_at <= current.date_ouverture:
@@ -457,4 +530,4 @@ def update_raffle(
     )
     db.commit()
     db.expire_all()
-    return _raffle_view(_load_raffle(db, raffle_id))
+    return _raffle_view(_load_raffle(db, raffle_id), db)

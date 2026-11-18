@@ -159,10 +159,17 @@ class Raffle(Base):
         String(16), nullable=False, default="OUVERT", server_default="OUVERT"
     )
     engagement_graine: Mapped[str | None] = mapped_column(String(64))
+    graine_aleatoire: Mapped[str | None] = mapped_column(String(64))
+    entropie_publique: Mapped[str | None] = mapped_column(String(512))
+    empreinte_participants: Mapped[str | None] = mapped_column(String(64))
+    nombre_participants: Mapped[int | None] = mapped_column(Integer)
+    resultat_publie_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     lots: Mapped[list["RaffleLot"]] = relationship(
         back_populates="raffle", cascade="all, delete-orphan", order_by="RaffleLot.id"
     )
+    tickets: Mapped[list["RaffleTicket"]] = relationship(back_populates="raffle")
+    winners: Mapped[list["RaffleWinner"]] = relationship(back_populates="raffle")
 
 
 class RaffleLot(Base):
@@ -177,9 +184,7 @@ class RaffleLot(Base):
     raffle_id: Mapped[str] = mapped_column(
         ForeignKey("raffles.id", ondelete="CASCADE"), nullable=False
     )
-    sponsor_id: Mapped[str | None] = mapped_column(
-        ForeignKey("sponsors.id", ondelete="SET NULL")
-    )
+    sponsor_id: Mapped[str | None] = mapped_column(ForeignKey("sponsors.id", ondelete="SET NULL"))
     nom: Mapped[str] = mapped_column(String(160), nullable=False)
     valeur_estimee: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     quantite: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -188,3 +193,63 @@ class RaffleLot(Base):
 
     raffle: Mapped[Raffle] = relationship(back_populates="lots")
     sponsor: Mapped[Sponsor | None] = relationship(back_populates="lots")
+
+
+class RaffleTicket(Base):
+    """Paid, one-per-user participation, distinct from scratch reward tickets."""
+
+    __tablename__ = "raffle_tickets"
+    __table_args__ = (
+        UniqueConstraint("raffle_id", "user_id", name="uq_raffle_ticket_user_raffle"),
+        Index("ix_raffle_tickets_raffle_created", "raffle_id", "created_at", "id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    raffle_id: Mapped[str] = mapped_column(
+        ForeignKey("raffles.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    raffle: Mapped[Raffle] = relationship(back_populates="tickets")
+
+
+class RaffleWinner(Base):
+    __tablename__ = "raffle_winners"
+    __table_args__ = (
+        UniqueConstraint("raffle_ticket_id", name="uq_raffle_winner_ticket"),
+        UniqueConstraint("raffle_id", "rank", name="uq_raffle_winner_rank"),
+        Index("ix_raffle_winners_raffle", "raffle_id", "rank"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    raffle_id: Mapped[str] = mapped_column(
+        ForeignKey("raffles.id", ondelete="CASCADE"), nullable=False
+    )
+    raffle_ticket_id: Mapped[str] = mapped_column(
+        ForeignKey("raffle_tickets.id", ondelete="RESTRICT"), nullable=False
+    )
+    lot_id: Mapped[str] = mapped_column(
+        ForeignKey("raffle_lots.id", ondelete="RESTRICT"), nullable=False
+    )
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    raffle: Mapped[Raffle] = relationship(back_populates="winners")
+
+
+class RaffleDrawAudit(Base):
+    __tablename__ = "raffle_draw_audits"
+
+    raffle_id: Mapped[str] = mapped_column(
+        ForeignKey("raffles.id", ondelete="CASCADE"), primary_key=True
+    )
+    result_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    seed_commitment: Mapped[str] = mapped_column(String(64), nullable=False)
+    participants_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    algorithm: Mapped[str] = mapped_column(String(64), nullable=False)
+    executed_by_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    executed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

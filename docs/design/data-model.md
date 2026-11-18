@@ -18,10 +18,15 @@ elle contient déjà `users.points_balance`, `current_streak`, `max_streak` et
 `last_visit_at`. Le lot #6 réutilise ces colonnes. Sa migration
 `0003_viewer_points` ajoute uniquement les tables `points_transactions`,
 `daily_checkins`, `scratch_card_grants` et `reward_tickets`. Cette mise à jour
-décrit les artefacts du code sur la branche #6; elle ne certifie pas une
-migration ou une concurrence en environnement PostgreSQL, ni une parité
-complète avec le schéma V1. Les tables d'appairage et de visionnage ne sont
-pas livrées dans #6 et restent au lot #7.
+décrit les artefacts du code sur la branche #6. Les migrations `0004` à `0009`
+ajoutent l’audit Admin, les annonces/contenus/versionnage, les sponsors, la
+chronologie globale, les signalements de fraude et la configuration des
+tirages/lots sur la branche de travail #8. Les tranches #5 et #6 sont
+fusionnées dans `dev`; #8 attend encore sa revue finale et sa livraison. Les
+contrôles rapportés pour #8 utilisent SQLite et ne certifient pas la migration
+ou la concurrence sur PostgreSQL ni une parité complète avec le schéma V1. Les
+tables d'appairage et de visionnage ne sont pas livrées dans #6 et restent au
+lot #7.
 
 ### Sous-ensemble physique implémenté par le lot #6
 
@@ -37,8 +42,10 @@ pas livrées dans #6 et restent au lot #7.
   révélation.
 - `reward_tickets`: catégorie, origine, identifiant source, clé d'idempotence,
   date d'émission et éventuelle date de consommation; contraintes sur les
-  catégories et origines ainsi qu'une unicité utilisateur/clé. #6 n'implémente
-  pas encore la consommation dans un tirage.
+  catégories et origines ainsi qu'une unicité utilisateur/clé. Les catégories
+  `CLASSIC` et `PREMIUM` représentent des tickets à gratter, pas des entrées de
+  tirage. #6 n'implémente pas le grattage et ne transforme pas ces lignes en
+  participations aux tirages.
 
 Validation rapportée: QA indique 14 tests ciblés passés et Ruff PASS; les
 tests couvrent l'isolation Viewer, replay quotidien, rollback, cohérence du
@@ -84,9 +91,11 @@ erDiagram
     USER ||--o{ POINTS_TRANSACTION : reçoit
     WATCH_SESSION ||--o{ POINTS_TRANSACTION : crédite
     USER ||--o{ SCRATCH_CARD : débloque
+    USER ||--o{ REWARD_TICKET : possède (ticket à gratter)
     USER ||--o{ RAFFLE_TICKET : détient
     RAFFLE ||--o{ RAFFLE_TICKET : reçoit
     RAFFLE ||--o{ RAFFLE_LOT : propose
+    SPONSOR o|--o{ RAFFLE_LOT : associe
     RAFFLE ||--o{ RAFFLE_WINNER : désigne
     USER ||--o{ SHOP_PURCHASE : effectue
     SHOP_ITEM ||--o{ SHOP_PURCHASE : concerne
@@ -96,9 +105,10 @@ erDiagram
     USER ||--o{ CONTENT_AUDIT_EVENT : réalise
 ```
 
-Le diagramme exprime le périmètre logique, pas la structure de la V1. Les
-noms physiques, colonnes, cardinalités et contraintes seront validés en
-relisant le commit de référence avant le scaffold.
+Le diagramme exprime le périmètre logique. Les éléments Sponsor ci-dessous
+sont vérifiés dans le schéma V1 au commit `76315fce9f27b957dcb68ce5b834367bb374046f`;
+les autres noms physiques, colonnes, cardinalités et contraintes restent à
+valider avant leur implémentation.
 
 ## Entités et règles attendues
 
@@ -110,12 +120,57 @@ relisant le commit de référence avant le scaffold.
 | Visionnage | Session, heartbeats, durée validée | Mesure côté serveur; état contrôlé; pas de double crédit lors des retries | Activité à minimiser et rétention à définir |
 | Points, sous-ensemble #6 implémenté | `points_transactions`, `users.points_balance` | Delta et ledger transactionnels, idempotence par utilisateur/clé, solde non négatif; aucun plafond global ajouté | Tests ciblés SQLite PASS; concurrence PostgreSQL non vérifiée |
 | Check-in/progression, sous-ensemble #6 implémenté | `daily_checkins`, champs streak de `users`, `scratch_card_grants` | Unique par utilisateur/jour métier; replay renvoie le résultat stable; grants aux paliers appliqués selon D-08/D-15 | `TZ` configure la journée métier, `Europe/Paris` par défaut; migration/concurrence PostgreSQL non vérifiées |
-| Cartes, grant seulement dans #6 | `scratch_card_grants` | Grant de palier unique par check-in; le résultat, sa révélation et le gain ne sont pas implémentés | À compléter au lot #9 avec les décisions D-08/D-16; ne pas confondre grant et carte jouable |
-| Tickets disponibles, sous-ensemble #6 implémenté | `reward_tickets` | Émission catégorisée et idempotente, inventaire des tickets non consommés | Consommation, tirages et résultats non implémentés; aucun lancement public |
-| Tirages | Tirage, lot, ticket, gagnant et audit | Émission traçable; sélection unique; statut et résultat persistés ensemble | Résultat justifiable sans révéler de secrets |
+| Cartes à gratter, grants seulement dans #6 | `scratch_card_grants` | Grant de palier unique par check-in; le résultat, sa révélation et le gain ne sont pas implémentés | À compléter au lot #9 avec D-08/D-16; un grant n’est pas encore un ticket jouable |
+| Tickets à gratter disponibles, sous-ensemble #6 implémenté | `reward_tickets` | Émission catégorisée `CLASSIC`/`PREMIUM` et idempotente; inventaire de tickets à gratter non consommés | #6 ne réalise pas de grattage et ne crée pas d’entrée de tirage à partir de ces lignes; parcours de grattage en #9 |
+| Tirages, configuration Admin #8 | `raffles`, `raffle_lots` et audit | Dates valides; création/édition transactionnelles; lots remplacés comme une liste complète; l’édition exige un tirage `OUVERT` | Migration `0009_admin_raffle_configuration`; les participations `raffle_tickets`, résultats, gagnants et exécution du tirage sont distincts des tickets à gratter et restent en #9 |
 | Boutique | Article, commande, code numérique | Instantané de l’article acheté; idempotence; stock/limites/solde contrôlés; attribution atomique | Codes chiffrés au repos; clé externe et versionnée |
 | Contenu | Annonce, contenu éditorial, version | Brouillon distinct de publication; archivage sans effacer l’historique requis | Données libres filtrées contre l’injection |
 | Administration/risque | Signal antifraude, événement d’audit | Transition de statut contrôlée; acteur et horodatage traçables | Accès Admin limité; aucun secret dans les logs |
+
+### Sponsor, preuve V1 et état V2
+
+Le schéma V1 définit `Sponsor` avec `id`, `nom`, `logoUrl` facultatif,
+`actif` par défaut à vrai et `createdAt`, plus un index sur `actif`. Chaque
+`RaffleLot` peut référencer un sponsor via `sponsorId` facultatif; à la
+suppression d'un sponsor, la clé du lot est mise à `NULL`. Ces éléments sont
+vérifiés dans `backend/prisma/schema.prisma` du checkout frère `Skkup`, au
+commit `76315fce9f27b957dcb68ce5b834367bb374046f`.
+
+Le lot Admin V2 ajoute la table `sponsors` par la migration
+`0006_admin_sponsors` et expose les routes V1 `GET`, `POST` et
+`PATCH /admin/sponsors`. La migration `0009_admin_raffle_configuration` ajoute
+`raffles` et `raffle_lots`; chaque lot référence un tirage et peut référencer
+un sponsor, dont la suppression met la référence à `NULL`. La réponse Admin
+des sponsors conserve `_count.lots: null` sans calculer ce décompte dans cette
+tranche. La stratégie de snapshot d'un sponsor lié à un lot et les règles de
+visibilité après publication ne sont pas définies ici.
+
+### Configuration Admin des tirages et lots, issue #8
+
+La migration `0009_admin_raffle_configuration` crée `raffles` et
+`raffle_lots`. La configuration inclut titre, description, dates d’ouverture
+et de tirage, statut et engagement SHA-256; un lot contient son nom, sa valeur
+estimée, sa quantité positive, son fournisseur, une URL d’image facultative et
+un sponsor facultatif. La relation tirage-lot cascade à la suppression du
+tirage; la référence sponsor devient `NULL` si le sponsor est supprimé.
+
+L’API Admin valide la configuration, refuse un engagement autre qu’un hash
+hexadécimal de 64 caractères à la création, limite la modification aux
+tirages ouverts et remplace la liste complète des lots en une transaction.
+La création produit aussi l’annonce planifiée/publicée et les entrées d’audit
+dans la même transaction, selon le flux V1 observé. Le PATCH verrouille la
+ligne du tirage sur les bases qui prennent en charge les verrous de ligne; les
+tests SQLite ciblés ne démontrent pas le comportement concurrent sur
+PostgreSQL. La migration ne stocke ni graine secrète, ni résultat, ni gagnant.
+L’issue #9 traite séparément les tickets Viewer `CLASSIC`/`PREMIUM` à gratter,
+les entrées `raffle_tickets`, les résultats et les gagnants. Selon D-16/D-20,
+le résultat « ticket » d’une carte à gratter attribue en V2 un ticket à gratter
+`CLASSIC` lorsque le tirage est ouvert; sans tirage ouvert, le fallback points
+observé dans V1 est conservé selon D-08. Le code V1 créait, pour le même
+résultat et sous cette condition, une entrée de tirage `raffleTicket` : cette
+différence de type d’entité est une décision V2 explicite. Les tickets
+`reward_tickets` ne sont jamais consommés comme participation; toute entrée
+effective au tirage relève de l’entité distincte `raffleTicket`.
 
 Ces concepts viennent des sections fonctionnelles du cahier. Les concepts
 `check-in`, `audit` et `fraude` doivent être rapprochés des règles actives et

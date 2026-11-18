@@ -1,3 +1,10 @@
+---
+status: in-progress
+last_updated: 2026-11-18
+owner: Produit et coordination
+work_item: 2026-11-18-chain-issues-5-6-8-9
+---
+
 # Journal des décisions de cadrage
 
 Date de mise à jour : 2026-11-18
@@ -37,16 +44,17 @@ d’origine ni son archive.
 | D-11 | Initialiser le premier compte Admin par une procédure hors interface, ponctuelle, auditée et désactivée après usage; aucun endpoint d’auto-promotion. | Recommandation acceptée | Réponse propriétaire, item 13; §11 du cahier | 2026-11-14 |
 | D-12 | Garder les codes consultables dans « Mes achats ». Ne promettre aucun email tant qu’un service n’est pas choisi et configuré. | Recommandation acceptée; service d’email inconnu | Réponse propriétaire, item 14; §11 du cahier | 2026-11-14 |
 | D-13 | Partir de la baseline du §6.2 du cahier, puis vérifier et verrouiller les versions compatibles au premier démarrage technique. | Recommandation acceptée; versions exactes différées | Réponse propriétaire, item 15; §6.2 et §11 du cahier | 2026-11-14 |
-| D-14 | À la première connexion quotidienne, le ticket classique D-07 satisfait le palier de streak 1 du cahier et remplace les +5 points directs du check-in V1; n’ajouter aucun gain distinct ni cumul de ces deux récompenses. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 1; cahier §5.3 | 2026-11-16 |
-| D-15 | Les tickets D-07 des paliers consécutifs 3/7/14/30 s’ajoutent aux cartes V1 conservées selon D-08. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 2 | 2026-11-16 |
-| D-16 | Tout ticket attribué par une carte à gratter V1 est catégorisé comme ticket classique. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 3 | 2026-11-16 |
+| D-14 | À la première connexion quotidienne, le ticket à gratter classique D-07 satisfait le palier de streak 1 du cahier et remplace les +5 points directs du check-in V1; n’ajouter aucun gain distinct ni cumul de ces deux récompenses. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 1; cahier §5.3; distinction confirmée par D-20 | 2026-11-18 |
+| D-15 | Les tickets à gratter `CLASSIC`/`PREMIUM` D-07 des paliers consécutifs 3/7/14/30 s’ajoutent aux cartes V1 conservées selon D-08. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 2; distinction confirmée par D-20 | 2026-11-18 |
+| D-16 | Le gain « ticket » d’une carte à gratter attribue un ticket à gratter `CLASSIC` en V2. La condition issue de D-08 est conservée: le résultat n’est accordé que si un tirage est ouvert; sans tirage ouvert, la carte attribue des points. C’est une différence explicite avec le code V1, qui crée une entrée de tirage `raffleTicket` dans ce cas. | Décision explicite; écart V1/V2 documenté | Réponse propriétaire, 2026-11-16, arbitrage 3; clarification propriétaire, 2026-11-18; source V1 citée ci-dessous | 2026-11-18 |
 | D-17 | Utiliser un shell Dashboard unique partagé entre Viewer et Admin, avec des sections adaptées au rôle, une navigation cohérente et des permissions Admin vérifiées côté serveur. La décision n’approuve pas à elle seule la palette, les tokens, les layouts détaillés ni les états visuels. | Décision explicite | Réponse propriétaire, 2026-11-16, réponse « oui » à l’espace Dashboard unique avec sections par rôle | 2026-11-16 |
 | D-18 | Valider la candidate visuelle V1 pour la palette et le langage de surface bleu nuit, les accents violet/cyan et un glow discret. Cette approbation ne fixe pas l’agencement, la densité, les breakpoints, les dimensions de panneaux ni les états détaillés, qui restent à valider techniquement. | Décision explicite, portée limitée à la palette et au langage visuel | Réponse propriétaire, 2026-11-16, « Valider la candidate V1 (Recommandé) » | 2026-11-16 |
 | D-19 | Concevoir le Dashboard partagé dans le thème du site avec une présentation professionnelle, peu chargée et facile à parcourir. La page ne défile pas globalement; détails et éditions s’ouvrent dans des modales accessibles, dont le contenu peut défiler indépendamment si nécessaire. Cette décision ne modifie pas la parité V1 des pages Connexion/Inscription ni la modale d’acceptation du règlement. | Décision explicite | Réponse propriétaire, 2026-11-18, demande de prise en compte du Dashboard | 2026-11-18 |
+| D-20 | Dans le barème D-07 et l’inventaire Viewer, les catégories `CLASSIC` et `PREMIUM` désignent des tickets à gratter, pas des participations aux tirages. Une participation est représentée séparément par `raffleTicket`. « Accès au concours » est un résultat distinct du ticket à gratter et ne doit pas être assimilé à une nouvelle carte `CLASSIC`/`PREMIUM`. | Décision explicite | Clarification propriétaire, 2026-11-18 | 2026-11-18 |
 
 ## Barème approuvé issu de l’image
 
-### Ticket journalier classique
+### Ticket à gratter classique journalier
 
 | Résultat | Probabilité |
 | --- | ---: |
@@ -54,14 +62,14 @@ d’origine ni son archive.
 | +5 points | 15 % |
 | +10 points | 10 % |
 | +15 points | 5 % |
-| 1 ticket classique | 40 % |
+| 1 ticket à gratter `CLASSIC` | 40 % |
 
 Total : 100 %.
 
-### Ticket premium
+### Ticket à gratter `PREMIUM`
 
-L’image associe le ticket premium au 14e et au 30e jour consécutif de
-connexion.
+L’image associe le ticket à gratter `PREMIUM` au 14e et au 30e jour
+consécutif de connexion.
 
 | Résultat | Probabilité |
 | --- | ---: |
@@ -72,14 +80,20 @@ connexion.
 
 Total : 100 %.
 
+Les catégories `CLASSIC` et `PREMIUM` désignent les tickets à gratter eux-mêmes.
+Le résultat « accès au concours » est un gain distinct du ticket à gratter.
+Les participations à un tirage sont des entités `raffleTicket`, séparées de
+l’inventaire de tickets à gratter `reward_tickets`; aucune conversion entre ces
+résultats n’est implicite.
+
 ### Récompenses de connexion consécutive
 
 | Palier | Récompense additionnelle | Total avec les tickets journaliers |
 | --- | --- | --- |
-| 3 jours | +1 ticket classique | 2 tickets classiques |
-| 7 jours | +2 tickets classiques | 3 tickets classiques |
-| 14 jours | +2 classiques et +1 premium | 3 classiques et 1 premium |
-| 30 jours | +2 classiques et +2 premium | 3 classiques et 2 premium |
+| 3 jours | +1 ticket à gratter `CLASSIC` | 2 tickets à gratter `CLASSIC` |
+| 7 jours | +2 tickets à gratter `CLASSIC` | 3 tickets à gratter `CLASSIC` |
+| 14 jours | +2 `CLASSIC` et +1 `PREMIUM` à gratter | 3 `CLASSIC` et 1 `PREMIUM` à gratter |
+| 30 jours | +2 `CLASSIC` et +2 `PREMIUM` à gratter | 3 `CLASSIC` et 2 `PREMIUM` à gratter |
 
 ### Visionnage et autres valeurs
 
@@ -94,7 +108,8 @@ Total : 100 %.
 | 7 h | 75 |
 | 8 h | 90 |
 
-- Prix du ticket d’accès au concours : 2 500 points.
+- Prix du ticket de participation au concours : 2 500 points. Il est distinct
+  des tickets à gratter `CLASSIC`/`PREMIUM`.
 - Parrainage : 15 points pour le parrain et 15 pour le nouvel inscrit qui
   s’inscrit via le lien de parrainage reçu par email.
 
@@ -111,18 +126,21 @@ cette revue.
 | Sujet | Valeur acquise du visuel (D-07) | Règle observée dans V1 | Articulation retenue | État |
 | --- | --- | --- | --- | --- |
 | Visionnage | Cumul horaire acquis : 10, 20, 35, 45, 55, 65, 75 et 90 points de 1 h à 8 h. | 10 points par heure pleine, +5 aux paliers de 3 h et 8 h; plafond V1 de 90 points de visionnage par jour. Les montants correspondent au visuel. | Conserver le barème et le plafond V1 de 90 points limités au visionnage. D-07 ne fixe aucun plafond global; aucune revalidation n’est requise. | Aucune pour le plafond: appliquer la baseline V1 au seul visionnage. |
-| Première connexion / ticket classique | Tirage classique acquis : perdant 30 %, +5 points 15 %, +10 points 10 %, +15 points 5 %, ticket classique 40 %. | Le check-in quotidien V1 crédite directement 5 points; les paliers de streak débloquent des cartes à gratter. Le mécanisme observé ne montre pas le tirage probabiliste classique. | Appliquer D-14 : le ticket classique D-07 remplace les +5 points directs V1, et satisfait le palier de streak 1 du cahier sans autre gain distinct. | Arbitrée par D-14; test V2 à écrire avant implémentation. |
-| Paliers de connexion | Récompenses additionnelles acquises après 3, 7, 14 et 30 jours de connexion consécutifs : respectivement +1 ticket classique, +2 classiques, +2 classiques et +1 premium, +2 classiques et +2 premium. | Le check-in V1 débloque une carte à gratter aux jours 3, 7, 14 et 30; il crée ensuite un ticket à chaque multiple de 10 strictement supérieur à 30. | Appliquer D-15 : les tickets D-07 s’ajoutent aux cartes V1 conservées selon D-08. | Arbitrée par D-15; l’extension de la série V1 au-delà du 30e jour reste à confirmer par le code exact. |
-| Récompense des cartes à gratter | Le visuel ne définit ni probabilités ni gains de carte à gratter. | V1 : gains de points par palier (3: 10, 7: 15, 14: 25, 30: 40; défaut 10); le tirage prévoit 70 % points, 25 % rien, 5 % ticket, mais le ticket n’est attribué que si un tirage est ouvert. Sans tirage ouvert, ce résultat est remplacé par des points. Source : `backend/src/scratch-cards/scratch-cards.service.ts`; test existant `backend/test/scratch-card-no-win.e2e-spec.ts`. | Conserver cette règle V1 conditionnelle comme baseline V2 pour le sujet non spécifié par le visuel, conformément au choix recommandé accepté D-08; tout ticket V1 est classique selon D-16. | Arbitrée par D-16; tests V2 requis avant implémentation. |
-| Ticket premium | Tirage premium acquis : +30 points 90 %, +40 points 5 %, +50 points 4 %, accès au concours 1 %; le visuel le rattache aux 14e et 30e jours consécutifs de connexion d’affilié. | Le check-in/carte consultés ne définissent pas cette catégorie de ticket premium ni cette table de résultats. | Appliquer la table premium D-07 aux paliers 14 et 30 consécutifs mentionnés, sans étendre son déclenchement à d’autres streaks; ces tickets s’ajoutent aux cartes selon D-15. | Arbitrée par D-15. |
+| Première connexion / ticket à gratter `CLASSIC` | Tirage d’un ticket à gratter classique : perdant 30 %, +5 points 15 %, +10 points 10 %, +15 points 5 %, 1 ticket à gratter `CLASSIC` 40 %. | Le check-in quotidien V1 crédite directement 5 points; les paliers de streak débloquent des cartes à gratter. Le mécanisme de la connexion quotidienne ne montre pas le tirage probabiliste D-07. | Appliquer D-14 : le ticket à gratter `CLASSIC` D-07 remplace les +5 points directs V1 et satisfait le palier de streak 1 sans autre gain distinct. | Arbitrée par D-14; test V2 à écrire avant implémentation. |
+| Paliers de connexion | Récompenses additionnelles acquises après 3, 7, 14 et 30 jours de connexion consécutifs : +1 ticket à gratter `CLASSIC`, +2 `CLASSIC`, +2 `CLASSIC` et +1 `PREMIUM`, +2 `CLASSIC` et +2 `PREMIUM`. | Le check-in V1 débloque une carte à gratter aux jours 3, 7, 14 et 30; il crée ensuite un ticket à chaque multiple de 10 strictement supérieur à 30. | Appliquer D-15 : les tickets à gratter D-07 s’ajoutent aux cartes V1 conservées selon D-08. | Arbitrée par D-15; l’extension au-delà du 30e jour reste à confirmer par le code exact. |
+| Récompense des cartes à gratter | Le visuel ne définit ni probabilités ni gains de grattage. | V1 : gains de points par palier (3: 10, 7: 15, 14: 25, 30: 40; défaut 10); le code choisit 70 % points, 25 % rien, 5 % « ticket ». Pour ce dernier résultat, il crée une entrée de tirage `raffleTicket` seulement si un tirage est ouvert; sans tirage ouvert, il crédite des points. Source : `backend/src/scratch-cards/scratch-cards.service.ts`; test V1 `backend/test/scratch-card-no-win.e2e-spec.ts`. | En V2, selon D-16, le résultat « ticket » attribue un ticket à gratter `CLASSIC` uniquement si un tirage est ouvert; sans tirage ouvert, le fallback points V1 est conservé selon D-08. Ce choix remplace l’entité attribuée par V1, mais conserve sa condition de disponibilité. | Décision V2 explicite; écart au type d’entité V1 à tester dans #9. |
+| Ticket à gratter `PREMIUM` | Résultat premium : +30 points 90 %, +40 points 5 %, +50 points 4 %, accès au concours 1 %; attribution associée aux jours de connexion consécutifs 14 et 30. | Le check-in/carte consultés ne définissent pas cette catégorie de ticket premium ni cette table de résultats. | Appliquer la table D-07 aux jours 14 et 30 mentionnés; les tickets à gratter s’ajoutent aux cartes selon D-15. « Accès au concours » est un résultat distinct; toute participation effective reste une entité `raffleTicket`, pas un ticket à gratter. | Attribution arbitrée par D-15; traitement distinct à couvrir dans #9. |
 
 Les valeurs D-07 retranscrites depuis le visuel sont acquises et ne sont pas
 remises en question ici. Les règles V1 non couvertes par le visuel restent la
-baseline recommandée acceptée par D-08. Les trois questions propriétaire
-portant sur le check-in, le cumul des récompenses de streak et la catégorie du
-ticket de grattage sont closes par D-14 à D-16. Les tests V1 n’ont pas été
-lancés; leur présence ne prouve pas que les comportements sont déployés ou
-encore souhaités.
+baseline recommandée acceptée par D-08. D-14/D-15 fixent l’articulation des
+récompenses quotidiennes et de streak. D-16/D-20 précisent que `CLASSIC` et
+`PREMIUM` sont des tickets à gratter. Pour le gain « ticket », V2 attribue un
+ticket à gratter `CLASSIC` lorsque le tirage est ouvert et conserve le fallback
+points sinon; le code V1 crée à la place une entité `raffleTicket`. « Accès au
+concours » reste un gain distinct et ne se confond pas avec le ticket à gratter.
+Les tests V1 n’ont pas été lancés; leur présence ne prouve pas que les
+comportements sont déployés ou encore souhaités.
 
 ## Hypothèses réversibles
 

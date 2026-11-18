@@ -1,174 +1,336 @@
-# Backend V2
+# API Skkup V2
 
-FastAPI service for the Skkup V2 API. Database schema changes are applied with
-Alembic; the service does not create tables automatically.
+Service FastAPI de l’API Skkup V2. Alembic applique les changements de schéma;
+le service ne crée pas automatiquement les tables.
 
-## Member authentication
+Mise à jour : 2026-11-18.
 
-The initial auth slice preserves the V1 route and response shapes:
+État des lots : #5 Auth/session et #6 points/progression sont livrés dans
+`dev`. Le lot Admin #8 est implémenté sur une branche de travail et reste en
+revue avant livraison. Aucun déploiement public n’est documenté ou autorisé.
 
-- `POST /auth/register`: `{ "email", "pseudo", "motDePasse", "accepteReglement" }`, returns `201 { "pseudo" }` and sets the session cookie.
-- `POST /auth/login`: `{ "email", "motDePasse" }`, returns `200 { "pseudo" }` and sets the session cookie.
-- `GET /auth/session`: returns `{ "authentifie": false, "profil": null }` when anonymous, otherwise the public account profile.
-- `POST /auth/logout`: returns `204`, revokes the current session when valid and clears the cookie even if it is invalid.
-- `PATCH /auth/password`: `{ "ancienMotDePasse", "nouveauMotDePasse" }`, returns `204`, changes the hash and revokes all web sessions.
+## Authentification membre
 
-Registration requires at least 12 characters, lowercase, uppercase, a digit,
-and a non-alphanumeric character. Password changes follow the V1 DTO, which
-requires 12 characters, lowercase, uppercase and a digit but does not require a
-symbol. Registration requires explicit terms acceptance. Accounts are created
-as `VIEWER`; the client cannot choose a role. Password recovery and email
-verification are not implemented because no accepted email workflow exists.
-Invalid request bodies return HTTP 400 with safe field-relevant French
-messages; request values and passwords are never echoed. Exact V1 validator
-wording remains subject to source-parity review.
+Le lot initial d’authentification conserve les routes et formes de réponse de
+la V1 :
 
-Passwords use Python's built-in scrypt implementation to avoid adding a
-runtime package to the minimal scaffold. This is a reversible V2 baseline;
-existing V1 password hashes are not imported or migrated. Web sessions use the
-V1-compatible signed HS256 token shape and a database `auth_sessions` row so
-logout, password changes and expiry can be enforced immediately by the API.
-The token's `jourConnexion` is compared to the Europe/Paris civil day; it
-becomes invalid at midnight in that timezone even if its 24-hour `exp` has not
-elapsed, matching the civil-day check in `JwtStrategy.validate` in V1 commit
-`fcc4767f3ece9efc069d1a1c413942067cb89c93`. V1's published regulation names
-Europe/Paris, but its versioned Compose and Docker configuration do not set a
-server timezone, so the historical runtime timezone cannot be proven from the
-repository. V2 explicitly sets `TZ=Europe/Paris` for the API and includes
-`tzdata` in the runtime image. Keep all API workers on this timezone. The
-signing secret is never stored in the repository.
+- `POST /auth/register` : `{ "email", "pseudo", "motDePasse", "accepteReglement" }`; renvoie `201 { "pseudo" }` et pose le cookie de session.
+- `POST /auth/login` : `{ "email", "motDePasse" }`; renvoie `200 { "pseudo" }` et pose le cookie de session.
+- `GET /auth/session` : renvoie `{ "authentifie": false, "profil": null }` sans session; sinon, renvoie le profil public du compte.
+- `POST /auth/logout` : renvoie `204`, révoque la session courante si elle est valide et efface le cookie, même si la session est invalide.
+- `PATCH /auth/password` : `{ "ancienMotDePasse", "nouveauMotDePasse" }`; renvoie `204`, modifie le hash et révoque toutes les sessions web.
+
+L’inscription exige un mot de passe d’au moins 12 caractères comprenant une
+minuscule, une majuscule, un chiffre et un caractère non alphanumérique. Le
+changement de mot de passe suit le DTO V1 : 12 caractères, une minuscule, une
+majuscule et un chiffre; le symbole n’est pas obligatoire. L’inscription
+exige l’acceptation explicite du règlement. Les comptes sont créés avec le
+rôle `VIEWER`; le client ne peut pas choisir un rôle. La récupération du mot
+de passe et la vérification d’adresse e-mail ne sont pas implémentées, car
+aucun parcours e-mail n’a été accepté. Les corps de requête invalides
+renvoient HTTP 400 avec des messages français limités aux champs concernés;
+les valeurs de requête et les mots de passe ne sont jamais renvoyés. La
+formulation exacte des messages V1 reste à comparer aux sources.
+
+Les mots de passe utilisent l’implémentation `scrypt` fournie par Python,
+sans ajouter de dépendance à ce socle minimal. Il s’agit d’une base V2
+réversible; les hashes de mots de passe V1 ne sont ni importés ni migrés. Les
+sessions web utilisent une forme de jeton signé HS256 compatible V1 et une
+ligne `auth_sessions` en base afin que l’API puisse appliquer immédiatement
+la déconnexion, les changements de mot de passe et l’expiration. Le champ
+`jourConnexion` du jeton est comparé au jour civil `Europe/Paris`; le jeton
+devient invalide à minuit dans ce fuseau, même si son `exp` de 24 heures n’est
+pas atteint. Cela correspond au contrôle du jour civil dans
+`JwtStrategy.validate` de la V1 au commit
+`fcc4767f3ece9efc069d1a1c413942067cb89c93`. Le règlement V1 mentionne
+`Europe/Paris`, mais les fichiers Compose et Docker versionnés de la V1 ne
+fixent pas le fuseau du serveur; celui utilisé historiquement ne peut donc pas
+être établi à partir du dépôt. V2 définit `TZ=Europe/Paris` pour l’API et
+inclut `tzdata` dans l’image d’exécution. Toutes les instances de l’API
+doivent conserver ce fuseau. Le secret de signature n’est jamais stocké dans
+le dépôt.
 
 ## Configuration
 
-The API requires the existing PostgreSQL variables `DB_HOST`, `POSTGRES_DB`,
-`POSTGRES_USER` and `POSTGRES_PASSWORD`. Authentication also requires
-`AUTH_TOKEN_SECRET` with at least 32 bytes. Configure `AUTH_ALLOWED_ORIGINS`
-as a comma-separated exact origin list; the development default is
-`http://localhost:3010,http://127.0.0.1:3010,http://localhost:3000,http://127.0.0.1:3000`
-to cover the repository's local web port and common direct development ports.
-Browser state-changing auth requests require a matching `Origin`, and CORS
-allows credentials only for the configured origins.
+L’API nécessite les variables PostgreSQL `DB_HOST`, `POSTGRES_DB`,
+`POSTGRES_USER` et `POSTGRES_PASSWORD`. L’authentification exige aussi
+`AUTH_TOKEN_SECRET` d’au moins 32 octets. Définis `AUTH_ALLOWED_ORIGINS` comme
+une liste exacte d’origines séparées par des virgules. La valeur de
+développement par défaut est
+`http://localhost:3010,http://127.0.0.1:3010,http://localhost:3000,http://127.0.0.1:3000`,
+pour couvrir le port web local du dépôt et les ports de développement directs
+courants. Les requêtes d’authentification qui modifient l’état doivent
+présenter une valeur `Origin` autorisée; CORS n’autorise les cookies et autres
+justificatifs d’authentification que pour ces origines.
 
-Generate a local-only signing key in the shell before starting the API, and
-pass it into the process environment; do not commit it:
+Génère une clé locale de signature dans le shell avant de démarrer l’API, puis
+transmets-la à l’environnement du processus. Ne la committe pas :
 
 ```bash
 export AUTH_TOKEN_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
 ```
 
-Compose requires this variable and passes it to the API container. It also
-passes `AUTH_ALLOWED_ORIGINS` and explicit `COOKIE_SECURE` settings. For a
-local HTTP session, use the committed `.env.example` as a template and set
-`COOKIE_SECURE=false`; do not use that setting behind a public HTTP endpoint.
-The auth client sends `credentials: "include"`. Browse locally at
-`http://localhost:3010` so its default API origin `http://localhost:8000`
-remains same-site for the Lax cookie. The `127.0.0.1:3010` origin is allowed
-for CORS as requested, but the current frontend default still calls
-`localhost:8000`; using the two different host spellings can cause browsers to
-withhold a Lax cookie. A future client/runtime change must choose a matching
-host on both sides before claiming both URL variants work end to end.
+Compose exige cette variable et la transmet au conteneur API. Il transmet
+également `AUTH_ALLOWED_ORIGINS` et une valeur explicite pour `COOKIE_SECURE`.
+Pour une session HTTP locale, utilise `.env.example` comme modèle et définis
+`COOKIE_SECURE=false`; ne garde pas ce réglage derrière une adresse HTTP
+publique. Le client d’authentification envoie `credentials: "include"`.
+Ouvre le site local à `http://localhost:3010` pour que son origine API par
+défaut `http://localhost:8000` reste sur le même site pour le cookie Lax.
+L’origine `http://127.0.0.1:3010` est autorisée par CORS, mais l’application web
+appelle encore `localhost:8000` par défaut; mélanger les deux formes d’hôte
+peut amener le navigateur à omettre le cookie Lax. Avant d’affirmer que les
+deux variantes fonctionnent de bout en bout, une évolution du client ou de la
+configuration d’exécution devra choisir le même nom d’hôte des deux côtés.
 
-`COOKIE_SECURE` defaults to `true`, setting `Secure`, `HttpOnly`,
-`SameSite=Lax`, `Path=/`, and the `__Host-vr_session` cookie name. For local
-HTTP development only, set `COOKIE_SECURE=false`; this uses `vr_session`
-because browsers reject `__Host-` cookies without `Secure`.
+`COOKIE_SECURE` vaut `true` par défaut et configure le cookie
+`__Host-vr_session` avec `Secure`, `HttpOnly`, `SameSite=Lax` et `Path=/`.
+Pour le développement HTTP local seulement, définis `COOKIE_SECURE=false`;
+le cookie devient alors `vr_session`, car les navigateurs refusent les
+cookies `__Host-` sans `Secure`.
 
-Authentication throttles are in-process and keyed by the direct client
-address: 5 registrations/hour, 10 login attempts/minute, and 3 password
-changes/hour. This protects a single service process without adding Redis or
-another service. It is not shared across workers, containers, or restarts; a
-multi-worker/public deployment needs a shared rate limiter before exposure.
+Les limitations d’authentification sont appliquées dans chaque processus et
+comptent les requêtes par adresse cliente directe : 5 inscriptions par heure,
+10 tentatives de connexion par minute et 3 changements de mot de passe par
+heure. Ce mécanisme protège un processus sans Redis ni service additionnel. Il
+n’est pas partagé entre processus, conteneurs ou redémarrages; avant toute
+exposition publique ou exécution avec plusieurs processus de l’API, il faut utiliser un
+limiteur partagé.
 
-## Viewer points and daily progression
+## Points et progression Viewer
 
-The issue #6 backend routes are authenticated from the current session cookie;
-they never accept a user ID from a request body or query:
+Les routes de l’API du lot #6 utilisent le cookie de la session courante; elles
+n’acceptent jamais un identifiant utilisateur fourni dans le corps ou la
+requête :
 
-- `GET /me` preserves the V1 profile response shape.
-- `GET /me/points` returns the points balance, current and maximum streak, next
-  documented streak milestone, and counts of available CLASSIC/PREMIUM reward
-  tickets.
-- `GET /me/points/history?page=1&limit=20` returns the V1 pagination envelope
-  and point transaction field names, filtered to the authenticated Viewer.
-- `GET /me/reward-tickets?page=1&limit=20` lists unassigned reward tickets.
-- `POST /me/daily-checkin` uses the session identity and requires an allowlisted
-  `Origin`. It returns a stable replay response for another request on the same
-  Europe/Paris civil day.
+- `GET /me` conserve la forme de réponse du profil V1.
+- `GET /me/points` renvoie le solde de points, la série actuelle et maximale, le prochain palier de série documenté et le nombre de tickets à gratter `CLASSIC`/`PREMIUM` disponibles.
+- `GET /me/points/history?page=1&limit=20` renvoie l’enveloppe de pagination V1 et les noms de champs des transactions, filtrés sur le Viewer authentifié.
+- `GET /me/reward-tickets?page=1&limit=20` liste les tickets à gratter `CLASSIC`/`PREMIUM` non consommés; ils ne sont pas des participations aux tirages.
+- `POST /me/daily-checkin` utilise l’identité de session et exige une origine `Origin` autorisée. Une requête répétée au cours du même jour civil `Europe/Paris` renvoie une réponse stable.
 
-The accepted D-14 rule replaces the V1 direct +5 check-in credit with one
-CLASSIC reward ticket, so a daily check-in writes no points ledger entry. D-15
-adds +1 CLASSIC on streak day 3, +2 CLASSIC on day 7, +2 CLASSIC and +1 PREMIUM
-on day 14, and +2 CLASSIC and +2 PREMIUM on day 30. These awards are in
-addition to the daily CLASSIC ticket. The V1 streak scratch-card grants at
-days 3, 7, 14 and 30 are recorded atomically as available grants. V1's
-preselected TICKET result on card grants at multiples of 10 after day 30 is
-preserved as grant metadata, without adding D-07 tickets.
-No scratch outcome is selected in this lot. D-16 is enforced by the shared
-ticket-award service, which categorizes a future scratch-card ticket as
-CLASSIC. Ticket reveal, random selection and conversion to a raffle entry are
-reserved for issue #9. Reward tickets are inventory records distinct from
-raffle entries; this lot does not consume them or implement purchases.
+La décision D-14 remplace le crédit direct V1 de +5 points à la connexion
+quotidienne par un ticket à gratter `CLASSIC`; cette connexion n’écrit
+donc aucune entrée dans le registre de points. D-15 ajoute +1 ticket `CLASSIC` au jour de
+série 3, +2 `CLASSIC` au jour 7, +2 `CLASSIC` et +1 `PREMIUM` au jour 14, puis
++2 `CLASSIC` et +2 `PREMIUM` au jour 30. Ces gains s’ajoutent au ticket
+`CLASSIC` quotidien. Les catégories `CLASSIC` et `PREMIUM` désignent des
+tickets à gratter, pas des participations aux tirages. Les droits de cartes à gratter des jours de série 3, 7,
+14 et 30, déjà présents dans la V1, sont enregistrés atomiquement comme des
+droits disponibles. Le résultat `TICKET` présélectionné par la V1 pour les
+cartes accordées aux multiples de 10 après le jour 30 est conservé comme
+métadonnée du droit débloqué, sans ajouter les tickets D-07.
 
-Point changes use a transaction ledger with signed amounts, a recorded
-post-change balance, and a per-user idempotency key. Zero-point activity rows
-remain representable for V1-compatible scratch outcomes. The user balance
-update and ledger row are written in one transaction; negative balances are
-rejected, and no global or daily point cap is introduced. The ledger and ticket
-inventory are separate so ticket awards cannot be mistaken for points.
+Aucun résultat de grattage n’est choisi dans ce lot. Selon D-16/D-20, le gain
+« ticket » d’une carte à gratter attribue en V2 un ticket à gratter `CLASSIC`
+si un tirage est ouvert; sinon, le fallback points observé en V1 est conservé
+selon D-08. Le code V1 attribuait sous cette condition une entrée `raffleTicket`,
+ce qui diffère explicitement du type d’entité V2. Les tickets à gratter
+`reward_tickets` et les participations `raffleTicket` restent deux entités
+distinctes; #6 ne les consomme pas et n’implémente aucun achat. « Accès au
+concours » est également un résultat distinct, et toute participation effective
+au tirage relève de `raffleTicket`.
 
-For idempotent daily check-in, V2 uses a unique `(user_id, local_day)` event,
-locks the user row during the operation, and commits the streak, card grant and
-ticket awards together. A repeated request returns the stored ticket and card
-IDs without another reward. This differs from V1's duplicate-check-in HTTP 409
-response but keeps the award effect unique and makes retries safe. The
-`scratch_card_grants` table records only entitlements, not scratch results or
-animation state; issue #9 owns those mechanics.
+Les changements de points utilisent un registre transactionnel avec des
+montants signés, le solde après modification et une clé d’idempotence par
+utilisateur. Les événements à zéro point restent représentables pour
+conserver les résultats de cartes V1. Le solde du compte et la ligne du
+registre sont écrits dans la même transaction; les soldes négatifs sont
+refusés et aucun plafond global ou quotidien n’est ajouté. Le registre et
+l’inventaire des tickets restent séparés pour ne pas confondre un ticket avec
+des points.
 
-## Migration
+Pour rendre la connexion quotidienne idempotente, V2 utilise un événement unique
+`(user_id, local_day)`, verrouille la ligne de l’utilisateur pendant
+l’opération et valide ensemble la série, le droit de carte et les tickets.
+Une requête répétée renvoie les identifiants de ticket et de carte déjà
+enregistrés sans attribuer de nouvelle récompense. Cela diffère de la réponse
+HTTP 409 envoyée par la V1 lors d’une connexion quotidienne en double, tout en
+conservant l’unicité des gains et la sûreté des nouvelles tentatives. La table `scratch_card_grants`
+stocke uniquement des droits; elle ne contient ni résultat ni état
+d’animation. Ces mécaniques relèvent de l’issue #9.
 
-After setting the database environment, apply the schema with the repository's
-Alembic configuration. Migration `0002_member_auth` creates the new `users`
-and `auth_sessions` tables; `0003_viewer_points` adds the point ledger,
-idempotent daily check-ins, scratch-card grant events and reward-ticket
-inventory. These migrations build on the empty V2 baseline and do not import
-or modify V1 or production data.
+## Administration, issue #8
 
-## Backend contract checks
+Les routes Admin exigent une session web persistée valide et relisent
+`users.role` en base à chaque requête. Une session absente, expirée, révoquée
+ou inactive reçoit HTTP 401; un rôle Viewer reçoit HTTP 403. Les mutations
+Admin exigent aussi un en-tête `Origin` autorisé.
 
-Run the dependency-free API contract checks from the repository root:
+- `GET /admin/users?search=...` renvoie jusqu’à 100 utilisateurs, du plus récent au plus ancien. La recherche sans casse porte sur le pseudo ou l’adresse e-mail.
+- `GET /admin/users/{id}` renvoie le profil utilisateur et le nombre de transactions disponibles.
+- `GET /admin/users/{id}/audit` renvoie les 100 derniers événements de statut de cet utilisateur.
+- `PATCH /admin/users/{id}/status` accepte uniquement `{ "actif": boolean }`. La désactivation incrémente `session_version`, révoque les sessions web persistées et enregistre l’acteur ainsi que les états précédent et suivant dans la même transaction. Un Admin ne peut pas désactiver son propre compte. La réactivation ne restaure pas les sessions révoquées; le compte doit se reconnecter.
+
+La modification des rôles n’est pas exposée. La décision D-11 laisse le
+provisionnement initial d’un compte Admin en dehors de l’interface; ces routes
+ne créent pas de compte Admin. Les réponses de liste et de fiche utilisateur
+conservent les clés V1 `_count.raffleTickets` et `_count.watchSessions`, mais
+leur valeur est `null` tant que ces domaines Viewer distincts ne sont pas
+implémentés. L’inventaire des tickets de récompense n’est pas utilisé à la
+place des entrées de tirage. Les indicateurs de synthèse et les opérations de
+boutique constituent d’autres tranches de l’issue #8.
+
+Les opérations sur les annonces et les contenus éditoriaux exigent une
+session Admin persistée et une origine autorisée pour toute mutation :
+
+- `GET/POST /admin/announcements` liste ou crée des annonces `DRAFT`. `PATCH /admin/announcements/{id}` modifie le texte ou la programmation; `actif: true` publie et `actif: false` archive. `POST /admin/announcements/{id}/publish`, `DELETE /admin/announcements/{id}` et `POST /admin/announcements/{id}/restore/{eventId}` offrent des transitions explicites. `GET /admin/announcements/{id}/history` renvoie les événements d’audit récents. `GET /announcements/active` ne renvoie que les annonces publiées dont la période est active.
+- `GET/POST /admin/content` liste ou crée des enregistrements avec les champs V1 vérifiés `slug`, `type`, `locale` et le JSON de premier niveau `data`. Les types sont `LANDING`, `LEGAL`, `ANNOUNCEMENT`, `FAQ` et `MEDIA`; les langues sont `fr` et `en`. Le JSON imbriqué reste opaque, car aucune structure éditoriale plus détaillée n’est vérifiée.
+- `GET/PATCH /admin/content/{id}`, `POST /admin/content/{id}/publish`, `GET /admin/content/{id}/history` et `POST /admin/content/{id}/restore/{version}` permettent de consulter, modifier, publier et restaurer une version. Une modification significative ajoute une version et un événement d’audit lié à son acteur dans la même transaction. Modifier un contenu publié le repasse à `DRAFT`, jusqu’à sa nouvelle publication.
+- `GET /content/{type}/{locale}/{slug}` sert un enregistrement uniquement lorsqu’il est `PUBLISHED`; un brouillon est renvoyé comme introuvable.
+- `GET /admin/sponsors?page=1&limit=100` renvoie les sponsors par nom, avec pagination bornée. `POST /admin/sponsors` accepte `{ "nom", "logoUrl"? }`; `PATCH /admin/sponsors/{id}` accepte `nom`, `logoUrl` (avec `null` pour l’effacer) et `actif`, tous facultatifs. Les URLs de logo doivent utiliser HTTPS et ne peuvent pas inclure d’identifiants. Ce sont les seules routes sponsor V1 vérifiées; aucune suppression n’est offerte. La création ou modification du sponsor et son événement d’audit sont validés ensemble. La liste conserve la clé V1 `_count.lots` à `null`; cette tranche ne calcule pas ce nombre, bien que la migration 0009 stocke maintenant la configuration des lots.
+
+`GET /admin/dashboard/summary` est une lecture Admin bornée pour le cockpit.
+Elle renvoie des compteurs basés sur la base ainsi que jusqu’à 8 événements
+d’audit récents, 5 annonces publiées et 5 contenus publiés. Une carte
+`availability` indique explicitement `not_implemented` pour les synthèses de
+tirages, lots, signalements de fraude et streams qui ne sont pas disponibles
+dans ce cockpit; leurs compteurs et sections de lignes valent `null`. Ainsi,
+une donnée non disponible ne se confond pas avec un vrai zéro. Les champs de
+réponse de l’audit sont sélectionnés explicitement; les métadonnées
+d’événement et les secrets de compte sont exclus.
+
+`GET /admin/audit?page=1&limit=20` expose la chronologie d’audit globale avec
+pagination (100 événements maximum par page). Elle ne renvoie que l’identifiant,
+l’action, l’entité, l’horodatage, l’identifiant et le pseudo de l’acteur; les
+métadonnées brutes, l’adresse e-mail et les secrets de compte sont exclus. La
+migration `0007_admin_audit_timeline` ajoute l’index décroissant de la
+chronologie. La route est en lecture seule et réservée aux Admins.
+
+La modération des `FraudFlag` utilise `GET /admin/fraud/flags?statut=` et
+`GET /admin/fraud/flags/{id}`, avec des pages limitées à 100 éléments. Seuls
+les statuts persistés `OUVERTE`, `EXAMINEE` et `IGNOREE` sont autorisés.
+`PATCH /admin/fraud/flags/{id}` accepte uniquement `{ "statut", "note"? }`;
+le statut, l’horodatage de revue et l’événement d’audit lié à l’acteur sont
+validés ensemble. Cette route ne modifie pas le compte, ne crée pas de
+signalement et ne déclenche aucun producteur. Aucun code V1 vérifié ne
+précise le sens des champs libres `type` et `details`; ils sont conservés pour
+la compatibilité avec le contrat d’origine, mais ne sont pas renvoyés par l’API. L’adresse e-mail
+et les identifiants de session sont également omis. Les détails liés à
+`WatchSession` restent indisponibles jusqu’à l’ajout de ce modèle dans le
+lot #7; la migration `0008_admin_fraud_flags` ne comporte volontairement pas
+de colonne ni de clé étrangère de session. Le limiteur courant autorise 60
+requêtes Admin par minute et par compte/adresse client dans un seul processus;
+une exécution avec plusieurs processus de l’API nécessite un limiteur partagé.
+
+La configuration Admin des tirages est exposée par
+`GET /admin/raffles?page=1&limit=20`, `GET /admin/raffles/{id}` et
+`GET /admin/raffles/{id}/history`; la liste est limitée à 100 éléments et
+l’historique à 100 événements. `POST /admin/raffles` exige `titre`,
+`description`, `dateOuverture`, une `dateTirage` postérieure, l’engagement
+SHA-256 `engagementGraine` de 64 caractères hexadécimaux et au moins un lot.
+La route crée le tirage, ses lots, l’annonce publiée et programmée selon le
+flux V1, ainsi que leurs événements d’audit dans une transaction. La graine
+brute n’est jamais acceptée ni stockée. `PATCH /admin/raffles/{id}` peut
+modifier uniquement `titre`, `description`, `dateTirage` et la liste complète
+des lots, et seulement lorsque le statut du tirage est `OUVERT`. Les URLs des
+images de lots doivent utiliser HTTPS; les identifiants de sponsor doivent
+référencer un sponsor existant. Les valeurs `null` et une liste vide de lots
+sont refusées. La modification remplace toute la liste de lots dans une
+transaction; la ligne du tirage est verrouillée par les bases qui prennent en
+charge les verrous de ligne. Les entrées d’audit contiennent les
+configurations précédente et résultante. Il n’existe pas de route V1 ni V2
+distincte pour supprimer un lot.
+
+La réponse de configuration du tirage ne renvoie que la configuration et
+l’engagement. Elle ne contient jamais la graine secrète ni les résultats;
+`ticketsDistribues` et `gagnantsCount` valent `null`, et la disponibilité du
+tirage ou des tickets reste `not_implemented`. Cette tranche ne comprend
+aucune route de tirage, ticket, participant ou gagnant; la participation
+Viewer et l’exécution du tirage restent dans l’issue #9.
+
+L’application web V2 actuelle ne contient pas de rendu de script JSON-LD ni de puits
+`dangerouslySetInnerHTML`. Si un rendu FAQ de ce type est ajouté, il devra
+échapper `<` lors de la sérialisation du contenu éditable dans un élément
+script et tester une charge `</script>`. Le stockage JSON dans l’API ne rend
+pas l’insertion HTML ou script sûre. Les lectures publiques renvoient le JSON
+enregistré et ne nettoient ni ne rendent le HTML.
+
+Le shell partagé `/dashboard` sépare les sections Viewer et Admin d’après le
+rôle de session vérifié côté serveur. L’interface Admin Raffles/Lots utilise
+un parcours compact en modales pour la liste, le détail, l’historique, la
+création et la modification; elle n’expose ni l’exécution du tirage ni
+l’attribution des participations au tirage, distinctes des tickets à gratter
+`CLASSIC`/`PREMIUM`. La vérification responsive et clavier du rendu
+final reste une porte de livraison pour l’issue #8.
+
+## Migrations
+
+Après avoir défini l’environnement de base de données, applique le schéma
+avec la configuration Alembic du dépôt. La migration `0002_member_auth` crée
+les tables `users` et `auth_sessions`; `0003_viewer_points` ajoute le registre
+de points, les connexions quotidiennes idempotentes, les événements
+d’attribution des cartes à gratter et l’inventaire de tickets de récompense.
+`0004_admin_user_audit`
+ajoute les événements d’audit Admin indexés et liés à leur acteur.
+`0005_admin_editorial` ajoute les annonces, les contenus typés et localisés
+ainsi que des instantanés immuables de versions. `0006_admin_sponsors` ajoute
+le catalogue sponsor de référence et son index d’activité.
+`0007_admin_audit_timeline` indexe la chronologie globale.
+`0008_admin_fraud_flags` ajoute les signalements liés aux utilisateurs sans
+lien vers `WatchSession`, réservé au lot #7.
+`0009_admin_raffle_configuration` ajoute la configuration Admin des tirages
+et des lots sans champs de résultat du tirage. Chaque migration peut être
+annulée avec son opération de retour arrière.
+
+Ces migrations s’appliquent à la base V2 vide et n’importent ni ne modifient
+les données V1 ou de production.
+
+## Vérifications des contrats de l’API
+
+Depuis la racine du dépôt, lance les contrôles de contrats API sans
+dépendance externe :
 
 ```bash
 PYTHONPATH=backend uv run --project backend --locked --no-sync python -m unittest discover -s backend/tests -p 'test_*.py'
 ```
 
-These checks drive the FastAPI ASGI app and points service with in-memory
-SQLite. They cover request validation, registration and consent, session
-cookies, the Viewer profile, login errors, logout and password-change
-revocation, exact Origin checks, credentialed CORS preflight, daily reward
-idempotence, D-14/D-15 categories, D-16 scratch-ticket categorization, point
-ledger/balance coherence, rollback and user/day uniqueness. They do not replace
-a PostgreSQL concurrency/migration test or browser/UI and visual verification.
+Ces contrôles interrogent l’application FastAPI ASGI et ses routes de service
+avec SQLite en mémoire. Ils couvrent la validation des requêtes,
+l’inscription et son consentement, les cookies de session, le profil Viewer,
+les erreurs de connexion, la révocation à la déconnexion et au changement de
+mot de passe, la validation exacte d’`Origin`, le préflight CORS avec
+authentification par cookie, l’idempotence des récompenses quotidiennes, les catégories
+D-14/D-15, la catégorisation D-16 du ticket de grattage, la cohérence entre
+registre et solde, les retours arrière transactionnels et l’unicité
+utilisateur/jour. Les contrôles Admin des utilisateurs et contenus couvrent
+le refus des requêtes anonymes et Viewer sur les routes protégées, la
+revalidation du rôle en base, l’origine autorisée des mutations, le refus de
+l’auto-désactivation, la révocation des sessions web, le cycle de vie des
+annonces, la lecture des seuls contenus publiés, le versionnement et la
+restauration des contenus, l’autorisation des routes sponsor, la validation
+HTTPS des URLs, l’atomicité des audits, la confidentialité et la pagination
+du journal global, les transitions de statut `FraudFlag`, la minimisation des
+champs sensibles, l’absence d’effet de bord après un refus et la réversibilité
+des migrations. Ces tests ne remplacent pas une vérification de migration ou
+de concurrence sur PostgreSQL, ni les contrôles navigateur et visuels.
 
-The issue #5 and #6 backend suites run through the command above. Ruff over
-`backend/app`, `backend/migrations` and `backend/tests` is required. SQLite
-checks cover rollback and the unique same-day constraint; actual parallel
-PostgreSQL locking and Compose migration execution remain deployment/CI checks.
-Form UI, navigation, keyboard behavior and screenshots remain outside these
-API contract checks.
+Les tranches serveur #5, #6 et #8 implémentées sont couvertes par cette
+commande. Ruff doit être exécuté sur `backend/app`, `backend/migrations` et
+`backend/tests`. Les contrôles SQLite couvrent les retours arrière et la
+contrainte d’unicité du jour. Le verrouillage PostgreSQL réellement concurrent
+et l’application des migrations par Compose restent des contrôles CI ou
+d’environnement. Ces tests de contrat ne couvrent pas les formulaires, la
+navigation, le clavier ni les captures d’écran.
 
-## Current limits
+## Limites actuelles
 
-- Password change increments `session_version` and revokes all V2 web sessions.
-  V1 also revokes active extension pairings, unused pairing tokens and active
-  watch sessions. V2 has not implemented those tables yet, so that effect is
-  not complete before issue #7. Every future extension credential must include
-  the account's `session_version` epoch and validate it server-side on every
-  request. Pairing revocation and watch-session invalidation remain explicit
-  #7 work; no complete extension invalidation is claimed in this lot.
-- SameSite Lax plus exact Origin validation is the initial CSRF defense. Proxy
-  trust, production origin setup, and frontend credentialed-fetch behavior
-  must be verified in the deployment and browser integration work.
-- The login/register email validator is a small syntactic check and is not a
-  complete RFC mailbox parser. The accepted V1 field and message behavior
-  should be verified before claiming full validation parity.
-- Session expiration is 24 hours, matching the V1 cookie and token lifetime.
+- Le changement de mot de passe incrémente `session_version` et révoque toutes
+  les sessions web V2. La V1 révoque aussi les appairages d’extension actifs,
+  les jetons d’appairage non utilisés et les sessions de visionnage actives.
+  V2 n’a pas encore ces tables; cette révocation complète attend donc le lot
+  #7. Tout futur identifiant d’extension devra porter l’époque
+  `session_version` du compte et la faire vérifier par le serveur à chaque
+  requête. La révocation des appairages et l’invalidation des sessions de
+  visionnage restent explicitement au lot #7.
+- `SameSite=Lax` et la validation exacte d’`Origin` forment la protection
+  initiale contre les requêtes intersites. La confiance accordée aux
+  mandataires réseau, la configuration des origines en production et le
+  comportement de l’application web qui envoie les cookies de session doit être
+  vérifiés pendant l’intégration navigateur et le déploiement.
+- Le validateur d’adresse e-mail à l’inscription et à la connexion effectue
+  un contrôle syntaxique simple; il ne couvre pas l’ensemble de la
+  spécification RFC des adresses. Il faut comparer les champs et messages V1
+  acceptés avant de revendiquer une parité complète de validation.
+- La session expire après 24 heures, conformément à la durée du cookie et du
+  jeton V1.

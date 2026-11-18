@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { ViewerDashboard } from "@/components/dashboard/ViewerDashboard";
+import { DashboardEntry } from "@/components/dashboard/DashboardEntry";
 
 export const metadata: Metadata = {
   title: "Tableau de bord | Skkup",
-  description: "Retrouve ton solde de points et ta progression Skkup.",
+  description: "Retrouve ton espace personnel ou d’administration Skkup.",
   robots: { index: false, follow: false },
 };
 
 export default function DashboardPage() {
-  return <ViewerDashboard />;
+  return <DashboardEntry />;
 }

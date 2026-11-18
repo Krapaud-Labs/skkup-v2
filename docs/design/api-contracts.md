@@ -1,8 +1,15 @@
+---
+status: in-progress
+last_updated: 2026-11-18
+owner: Documentation
+work_item: 2026-11-18-chain-issues-5-6-8-9
+---
+
 # Contrats d'interfaces
 
 ## Décisions et limites
 
-API cible REST JSON/OpenAPI avec FastAPI/Pydantic. La compatibilité Socket.IO du client existant est à préserver jusqu'à l'inventaire des contrats et clients publiés. Les domaines ci-dessous sont des frontières de conception, pas des endpoints approuvés.
+API cible REST JSON/OpenAPI avec FastAPI/Pydantic. La compatibilité Socket.IO du client existant est à préserver jusqu'à l'inventaire des contrats et clients publiés. Le tableau présente les frontières de conception; les sections ultérieures distinguent les contrats V2 effectivement implémentés.
 
 | Domaine | Consommateur | Responsabilité | Autorisation à spécifier | Preuve avant implémentation |
 | --- | --- | --- | --- | --- |
@@ -21,29 +28,37 @@ Versionnement, erreurs, pagination, idempotence, tailles maximales, délais et r
 
 Ne pas changer les routes ou payloads consommés par l'extension sans versionnement et migration coordonnée. REST permet de récupérer l'état si le temps réel échoue. Les exemples concrets attendent la comparaison au commit V1.
 
-## Points et progression Viewer, lot #6 en cours
+## Points et progression Viewer, lot #6 livré dans `dev`
 
 Toutes les routes de cette section exigent une session web authentifiée. Les
 résultats sont rattachés à l'identité de session; le client ne fournit pas le
-`user_id` cible. Les routes sont présentes sur la branche de l'issue #6; la PR,
-la CI et la fusion vers `dev` restent en attente.
+`user_id` cible. Ces routes ont été livrées dans `dev` via la PR #15, merge
+commit `eb3b129`.
 
 | Méthode et route | Contrat implémenté |
 | --- | --- |
 | `GET /me` | Profil: `id`, `email`, `pseudo`, `role`, `soldePoints`, `streakActuel`, `streakMax`, `derniereVisiteAt`, `createdAt`. |
-| `GET /me/points` | Résumé: `soldePoints`, `streakActuel`, `streakMax`, `derniereVisiteAt`, `prochainPalierStreak`, `ticketsDisponibles` par catégorie. Compare le solde utilisateur à la somme du ledger et renvoie HTTP 500 en cas de divergence. |
+| `GET /me/points` | Résumé: `soldePoints`, `streakActuel`, `streakMax`, `derniereVisiteAt`, `prochainPalierStreak`, `ticketsDisponibles` de tickets à gratter `CLASSIC`/`PREMIUM`. Compare le solde utilisateur à la somme du registre et renvoie HTTP 500 en cas de divergence. |
 | `GET /me/points/history?page=1&limit=20` | Historique paginé, `limit` borné à 1–100; retourne `transactions` (`id`, `userId`, `type`, `montant`, `watchSessionId`, `shopPurchaseId`, `createdAt`), `page`, `limit`, `total`, `totalPages`. |
-| `GET /me/reward-tickets?page=1&limit=20` | Inventaire paginé des tickets non consommés, limite 1–100; chaque ticket expose `id`, `categorie`, `origine`, `obtenuLe`, avec `page`, `limit`, `total`, `totalPages`. Cette route n'effectue ni consommation ni inscription à un tirage. |
-| `POST /me/daily-checkin` | Sans payload métier; vérifie l'origine et la session. Enregistre au plus un check-in par journée métier et réexpose le même résultat lors d'un replay. Attribue le ticket quotidien Classic; applique les tickets additionnels de palier D-15 et crée les grants de cartes V1 aux paliers prévus. Réponse: `id`, `jourConnexion`, `streakActuel`, `streakMax`, `soldePoints`, `pointsCredites` (0), `ticketsAttribues[]`, `carteAGratterDebloquee`, `palierCarte` et `carteDebloquee` (ou `null`). |
+| `GET /me/reward-tickets?page=1&limit=20` | Inventaire paginé des tickets à gratter `CLASSIC`/`PREMIUM` non consommés, limite 1–100; chaque ticket expose `id`, `categorie`, `origine`, `obtenuLe`, avec `page`, `limit`, `total`, `totalPages`. Cette route n'effectue ni grattage ni inscription à un tirage. |
+| `POST /me/daily-checkin` | Sans payload métier; vérifie l'origine et la session. Enregistre au plus un check-in par journée métier et réexpose le même résultat lors d'un replay. Attribue le ticket à gratter quotidien `CLASSIC`; applique les tickets à gratter additionnels de palier D-15 et crée les grants de cartes V1 aux paliers prévus. Réponse: `id`, `jourConnexion`, `streakActuel`, `streakMax`, `soldePoints`, `pointsCredites` (0), `ticketsAttribues[]`, `carteAGratterDebloquee`, `palierCarte` et `carteDebloquee` (ou `null`). |
 
-Le jour métier utilise `TZ` avec `Europe/Paris` par défaut. Les décisions
-D-14 à D-16 régissent la première récompense quotidienne et les tickets de
-paliers. Les tests ciblés rapportés par QA couvrent l'isolation Viewer, le
+Le jour métier utilise `TZ` avec `Europe/Paris` par défaut. D-14 à D-16
+régissent les attributions; D-20 précise que les catégories `CLASSIC` et
+`PREMIUM` sont des tickets à gratter, distincts des participations au tirage.
+Le code V1 créait une entrée `raffleTicket` pour le gain « ticket » si un tirage
+était ouvert. Selon D-16/D-20, V2 attribue à la place un ticket à gratter
+`CLASSIC` sous cette condition et conserve le fallback points V1 en l’absence
+de tirage ouvert. `reward_tickets` reste un inventaire de tickets à gratter,
+jamais une entrée de tirage; la participation est portée séparément par
+`raffleTicket`. « Accès au concours » reste un résultat distinct. Les tests
+ciblés rapportés par QA couvrent l'isolation Viewer, le
 replay quotidien, le rollback, le ledger et ces décisions; Ruff passe et la
 migration DDL a été exercée sous SQLite. Ni migration PostgreSQL, ni test de
 concurrence mult-processus sur PostgreSQL ne sont revendiqués. Le grant de
-carte ne contient pas encore le résultat ou le mécanisme de grattage; ces
-parcours et l'usage des tickets restent au lot #9.
+carte ne contient pas encore le résultat ou le mécanisme de grattage; le
+grattage des tickets `CLASSIC`/`PREMIUM` et l’attribution des participations
+au tirage, qui en sont distinctes, restent au lot #9.
 
 ## Authentification/session, lot #5 livré dans `dev`
 
@@ -92,3 +107,35 @@ complète des formulaires, de la navigation ou de l'accessibilité clavier. La
 parité fonctionnelle complète reste ouverte. La migration PostgreSQL via
 Docker n'a pas été vérifiée, le socket Docker ayant été refusé dans
 l'environnement QA.
+
+## Administration V2, issue #8 en revue sur sa branche
+
+Chaque route `/admin/*` requiert une session web valide et un rôle Admin relu
+côté serveur. Les mutations exigent une origine autorisée; les écritures
+sensibles et transitions sont auditées transactionnellement. Les détails
+complets des champs, validations et réponses figurent dans
+[`backend/README.md`](../../backend/README.md).
+
+| Méthode et route | Contrat implémenté sur la branche #8 |
+| --- | --- |
+| `GET /admin/users`, `GET /admin/users/{id}`, `GET /admin/users/{id}/audit` | Liste bornée, fiche et événements de statut; recherche sur pseudo/email. |
+| `PATCH /admin/users/{id}/status` | Active/désactive un compte, révoque ses sessions web lors de la désactivation; aucune modification de rôle ou auto-désactivation. |
+| `GET/POST /admin/announcements`, `PATCH /admin/announcements/{id}`, `POST /admin/announcements/{id}/publish`, `DELETE /admin/announcements/{id}`, `POST /admin/announcements/{id}/restore/{eventId}`, `GET /admin/announcements/{id}/history` | Cycle de vie et restauration par événements d'audit; mutations limitées par origine autorisée. |
+| `GET/POST /admin/content`, `GET/PATCH /admin/content/{id}`, `POST /admin/content/{id}/publish`, `GET /admin/content/{id}/history`, `POST /admin/content/{id}/restore/{version}` | Contenu typé/localisé, versionnement des changements; le JSON imbriqué reste opaque. |
+| `GET/POST /admin/sponsors`, `PATCH /admin/sponsors/{id}` | Catalogue source V1; URLs de logo HTTPS; pas de suppression dédiée; `_count.lots` reste `null`. |
+| `GET /admin/dashboard/summary` | Indicateurs présents et bornés; données non implémentées explicitement marquées comme indisponibles. |
+| `GET /admin/audit?page=1&limit=20` | Chronologie paginée; données personnelles et métadonnées brutes exclues. |
+| `GET /admin/fraud/flags`, `GET /admin/fraud/flags/{id}`, `PATCH /admin/fraud/flags/{id}` | Lecture et transitions de statut autorisées; pas de création de signalement, d'accès WatchSession ou de mutation de compte. |
+| `GET /admin/raffles?page=1&limit=20`, `GET /admin/raffles/{id}`, `GET /admin/raffles/{id}/history` | Liste, fiche de configuration et audit; pagination et historique bornés. |
+| `POST /admin/raffles`, `PATCH /admin/raffles/{id}` | Crée/édite un tirage ouvert et sa liste complète de lots; hash d'engagement, validation dates et HTTPS, sponsor existant; audit atomique. Le POST crée et publie également l'annonce programmée, dans la même transaction. |
+
+La migration `0009_admin_raffle_configuration` contient la configuration des
+tirages et lots, sans graine secrète, ticket Viewer, résultat ou gagnant.
+`drawAvailability` reste `not_implemented`; la participation Viewer,
+l'attribution des participations au tirage (distinctes des tickets à gratter
+`CLASSIC`/`PREMIUM`) et l'exécution du tirage restent dans l'issue #9.
+Les contrôles Admin ciblés rapportés incluent les refus anonyme/Viewer,
+l'atomicité et les migrations sous SQLite; ils ne démontrent pas le verrouillage
+concurrent PostgreSQL. Le build frontend passe selon le spécialiste; les
+captures responsive, interactions clavier/modal, audit indépendant, CI et
+fusion de #8 restent en attente.

@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
-from app.auth.routes import _claims_for_request, _require_origin
+from app.auth.routes import _require_origin
+from app.auth.session import claims_for_request as _claims_for_request
 from app.db import get_db
 from app.points.service import (
     checkin_daily,

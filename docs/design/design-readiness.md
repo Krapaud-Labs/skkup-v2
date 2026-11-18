@@ -21,7 +21,7 @@ Cette approbation concerne le **cadrage de conception** : inventaire statique
 V1, arbitrages D-14 à D-16, direction de Dashboard D-17/D-18, revue QA et
 audit indépendant. Elle autorise la préparation détaillée et la planification
 des lots de développement; elle ne certifie ni le rendu ni le comportement
-d’une application V2, qui n’est pas encore implémentée.
+de l'application V2, désormais en cours d'implémentation.
 
 Conserver les préconditions suivantes dans les lots concernés :
 
@@ -41,6 +41,33 @@ Conserver les préconditions suivantes dans les lots concernés :
 Les tests V1 cités dans l’inventaire n’ont pas été exécutés. Aucun test V2,
 build, comparaison visuelle, mesure responsive/contraste ni contrôle effectif
 de permission n’est revendiqué comme exécuté par cette approbation.
+
+### État du lot Auth/session #5
+
+Le backend V2 contient actuellement les routes register, login, session,
+logout et changement de mot de passe, avec comptes et sessions web persistés.
+Le changement de mot de passe révoque les sessions web V2 et incrémente
+`session_version`. QA rapporte cinq tests Auth réussis : quatre tests de
+contrat ASGI direct avec SQLite en mémoire et un test unitaire du rollover au
+changement de jour civil. Ruff passe sur `backend/app`, `backend/migrations`
+et `backend/tests`. Ces tests couvrent les contrats Auth sélectionnés, sans
+prouver le fonctionnement avec PostgreSQL. QA a comparé les captures Chromium
+headless V1/V2 correspondantes sur desktop, mobile et inscription. Les écarts
+visuels résiduels ont été estimés à environ 10–20 px sur mobile et environ
+5 px sur la modale selon les vues; aucune mesure différentielle quantitative
+n'a été produite, donc aucune parité pixel-perfect ou identité à 100 % n'est
+revendiquée. Sur la modale mobile, le document mesurait 999 px pour un viewport
+de 844 px; le CTA à y=902 est devenu visible après `scrollY=155`. Vingt
+pressions Tab sont restées dans la modale sans soumettre le formulaire. Ces
+contrôles ne remplacent pas la revue complète des formulaires, états et
+navigation ni un audit général d'accessibilité clavier. La comparaison
+visuelle des captures est faite, mais l'égalité pixel à pixel n'est pas
+mesurée. La parité comportementale avec le commit V1
+`fcc4767f3ece9efc069d1a1c413942067cb89c93` reste à réaliser avant clôture de
+#5. La migration Docker/PostgreSQL n'a pas été vérifiée car l'accès au socket
+Docker a été refusé dans l'environnement QA. Les domaines appairage/watch ne
+sont pas dans ce lot; la révocation de leurs credentials dépend de #7 et n'est
+pas revendiquée.
 
 ## Inventaire de parité V1/V2
 
@@ -431,10 +458,12 @@ OS/navigateurs et scénarios opérationnels US-07. Pour les médias, les usages
 runtime et fichiers copiés au package sont inventoriés dans
 `docs/design/media-inventory.md`; provenance et licences par fichier restent
 inconnues, donc aucun actif V1 ne doit être copié avant preuve des droits.
-Les tests V1 cités ne sont pas exécutés. Aucun test V2, build, capture,
-parcours navigateur ou image-diff n’est une preuve de cette revue. La parité
-visuelle demandée au cahier reste à réaliser avant de fermer les portes
-correspondantes.
+Les tests V1 cités ne sont pas exécutés. QA a depuis comparé des captures
+Auth V1/V2 desktop, mobile et inscription; les écarts restent qualitatifs et
+aucune mesure différentielle n'est disponible, donc cette comparaison ne
+prouve pas une égalité pixel à pixel. Elle ne clôt pas la parité Auth complète
+ni les autres stories. La parité demandée au cahier reste à établir avant de
+fermer les portes correspondantes.
 
 ## Dashboard partagé et direction visuelle
 
@@ -470,11 +499,23 @@ détaillés restent à valider techniquement selon les critères de
 Les actifs, usages runtime et sources copiées au package sont inventoriés dans
 `docs/design/media-inventory.md`. Leur provenance et licences fichier par
 fichier ne sont pas établies; ne copier aucun actif V1 avant preuve des droits.
-Aucun rendu V2, capture, contrôle navigateur ou comparaison visuelle V1/V2
-n’existe à cette étape. Les revues QA et indépendante PASS portent sur les
-critères de cadrage, et non sur un rendu produit. Les validations de layout,
-responsive, contrastes et parité devront être exécutées dans les lots concernés.
-La palette approuvée ne constitue pas une preuve de rendu ou de parité.
+La comparaison Chromium Auth V1/V2 réalisée après le cadrage ne valide pas le
+Dashboard : aucun rendu ni capture Dashboard n'est consigné ici. Les écarts
+Auth estimés sont environ 10–20 px sur mobile et 5 px sur la modale selon les
+vues, sans mesure différentielle; le pixel-perfect n'est pas établi. Les revues
+QA et indépendante PASS portent sur les critères de cadrage, et non sur une
+parité produit générale. Les validations de layout, responsive, contrastes et
+comparaison visuelle des domaines restants devront être exécutées dans leurs
+lots. La palette approuvée ne constitue pas une preuve de rendu ou de parité.
+
+La revalidation visuelle Auth après correction des marqueurs correspond aux
+captures V1 sur la présence des puces (masquées dans le rendu V1 par le reset
+Tailwind) et leur retrait; la scrollbar violette du dialogue reste visible en
+V2 seulement. Le CTA reste accessible après défilement du document mobile et
+les tabulations demeurent confinées à la modale. Le flux Auth redirige vers
+`/dashboard`, route attendue au lot #6, et ne peut pas être considéré comme un
+parcours autonome complet avant cette intégration. Les preuves de livraison
+et limites actuelles sont consignées dans le README et le work item #5.
 
 D-17 et D-18 ne modifient pas les décisions de récompenses D-07/D-08 et ne
 clôturent pas les validations de rendu, layout/responsive, parité ou audit
@@ -483,11 +524,11 @@ visuelles de réalisation restent des préconditions par lot.
 
 Les décisions propriétaire, dont D-17 et D-18, sont consignées dans
 `docs/project-management/decision-log.md`. Les chemins V1 cités sont des
-références source et non des affirmations de parité déjà obtenue dans V2. La
-relecture indépendante du cadrage est PASS; la comparaison visuelle exécutée
-sur des écrans V2 reste à faire quand ces écrans existeront. Les inconnues
-techniques et de déploiement sont affectées aux lots concernés, sans révoquer
-l’approbation du cadrage.
+références source; la comparaison Auth documentée ici ne revendique pas une
+parité pixel-perfect ou la parité d'autres domaines. La relecture indépendante
+du cadrage est PASS; le Dashboard reste à comparer quand son rendu existera.
+Les inconnues techniques et de déploiement sont affectées aux lots concernés,
+sans révoquer l’approbation du cadrage.
 
 ## Décision
 
@@ -502,4 +543,5 @@ Résultats au cadrage, 2026-11-16 : Produit PASS sur l’inventaire et les
 arbitrages D-14 à D-16; QA PASS sur la direction Dashboard D-17/D-18; Auditeur
 PASS indépendant; scan des marqueurs PASS. Aucun test V2, build, parcours
 navigateur, comparaison visuelle, mesure responsive/contraste ou test négatif
-d’accès Admin n’est déclaré exécuté.
+d’accès Admin n’est déclaré exécuté au moment de cette approbation. Depuis,
+les contrôles Auth #5 sont documentés dans la section d'état du lot ci-dessus.

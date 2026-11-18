@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./auth.css";
 
 export const metadata: Metadata = {
-  title: "Skkup V2 scaffold",
-  description: "Local technical foundation for Skkup V2.",
+  title: "Skkup",
+  description: "Ton espace Skkup.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

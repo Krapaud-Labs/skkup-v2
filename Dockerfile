@@ -9,9 +9,13 @@ COPY backend/migrations ./migrations
 RUN uv sync --locked --no-dev --no-editable
 
 FROM python:3.13.18-slim AS runtime
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y tzdata \
+    && rm -rf /var/lib/apt/lists/*
 ENV PATH="/app/backend/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Paris
 WORKDIR /app
 COPY --from=builder --chown=10001:10001 /app/backend/.venv /app/backend/.venv
 COPY --chown=10001:10001 alembic.ini /app/alembic.ini

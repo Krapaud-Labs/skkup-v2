@@ -1,6 +1,6 @@
 # Skkup V2
 
-Nouvelle base applicative publique pour la plateforme Skkup. Le dépôt contient le cadrage, les documents de conception et le scaffold technique V2; les fonctionnalités produit ne sont pas encore implémentées.
+Nouvelle base applicative publique pour la plateforme Skkup. Le dépôt contient le cadrage et les documents de conception; l’API V2 fournit maintenant le premier lot d’authentification membre, tandis que les autres domaines produit restent à construire.
 
 ## Périmètre
 
@@ -10,10 +10,12 @@ La couverture statique vérifiable de la référence V1 au commit `fcc4767f3ece9
 
 ## Scaffold technique
 
-- API : FastAPI 0.163.1 sur Uvicorn 0.54.0, limitée pour l'instant aux
-  contrôles de santé `/health/live` et `/health/ready`.
-- Interface : Next.js 16.4.6 avec React 19.3.0, page d'accueil technique
-  minimale.
+- API : FastAPI 0.163.1 sur Uvicorn 0.54.0, avec contrôles de santé et routes
+  d’authentification `/auth/register`, `/auth/login`, `/auth/session`,
+  `/auth/logout` et `/auth/password`.
+- Interface : Next.js 16.4.6 avec React 19.3.0. Les pages `/connexion` et
+  `/inscription` présentent les formulaires d'authentification; l'inscription
+  ouvre le règlement du jeu dans une modale avant le consentement.
 - Base de données : PostgreSQL 18.6.
 - Migrations : Alembic 1.20.1 et SQLAlchemy 2.0.57, avec Psycopg 3.3.9.
 - Runtime du conteneur : Python 3.13.18.
@@ -22,11 +24,35 @@ La couverture statique vérifiable de la référence V1 au commit `fcc4767f3ece9
   une migration de démarrage.
 - CI : GitHub Actions sur les pull requests vers `dev`.
 
-Le premier scaffold initialise une base locale dédiée et vide, démarre l'API
-et l'interface web minimales, puis exécute la baseline Alembic. Les seules
-routes API sont les contrôles techniques de santé. Aucun compte, schéma
-métier, fonctionnalité produit, migration de données ou paramètre de
-production n'est inclus. Ces stubs sont temporaires et réversibles.
+Compose initialise une base locale dédiée et vide, applique Alembic jusqu’à
+`0002_member_auth`, puis démarre l'API et l'interface web. Le schéma comprend
+les comptes Viewer et les sessions web révocables. Les points, tirages,
+récompenses, autorisations Admin et migration de données V1 ne sont pas
+implémentés. Le changement de mot de passe incrémente `session_version` et
+révoque les sessions web; la révocation des appairages d’extension et des
+sessions de visionnage reste à intégrer avec le lot #7. L’authentification est
+un premier lot de développement et ne constitue pas une configuration de
+production.
+
+Les écrans Auth reprennent la structure de référence des pages Connexion et
+Inscription et utilisent les ressources suivies sous
+`frontend/public/assets/auth/` : `skkup-wordmark-transparent.png`, `points.png`,
+`ticket.png` et `close.png`. Le dialogue de règlement place le focus sur sa
+case d'acceptation, confine Tab et Maj+Tab, rend le contenu arrière inerte et
+restitue le focus au champ pseudo après acceptation. Les pages Auth gardent un
+défilement vertical utilisable sur petit écran sans débordement horizontal.
+QA a comparé des captures Chromium headless V1/V2 desktop, mobile et inscription.
+Les écarts visuels résiduels sont estimés à environ 10–20 px sur mobile et
+5 px sur la modale selon les vues. Aucun diff quantitatif n'a été produit; le
+pixel-perfect et l'identité à 100 % ne sont pas revendiqués. Sur la modale
+mobile, le document mesurait 1 019 px pour un viewport de 844 px; le CTA à
+y=920 est devenu entièrement visible après `scrollY=175`. Vingt pressions Tab
+sont restées dans la modale sans soumettre le formulaire. Les listes du
+règlement restent sans puces visibles comme dans la capture V1. Une scrollbar
+violette est encore visible dans la modale V2 alors qu'elle ne l'est pas sur la
+capture V1. La redirection après authentification vise `/dashboard`, qui sera
+fourni dans le lot #6 et n'existe pas encore dans ce checkpoint. La parité
+fonctionnelle complète reste à vérifier.
 
 ## Prérequis
 
@@ -38,6 +64,28 @@ d'autres ports hôtes.
 
 ## Démarrer la base locale
 
+Prépare une configuration locale ignorée par Git et une clé aléatoire qui
+n’est pas enregistrée dans le dépôt :
+
+```bash
+cp .env.example .env
+python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+```
+
+Copie la valeur générée dans `AUTH_TOKEN_SECRET` de ton `.env` local. Garde
+`COOKIE_SECURE=false` uniquement pour le HTTP local. La valeur
+`AUTH_ALLOWED_ORIGINS` de l’exemple autorise `http://localhost:3010` et
+`http://127.0.0.1:3010`.
+Pour que le cookie `SameSite=Lax` et l’API par défaut restent sur le même site,
+ouvre l’interface à `http://localhost:3010`; le frontend appelle
+`http://localhost:8000` et envoie les credentials du cookie. Les deux origines
+sont autorisées par CORS, mais mélanger `localhost` et `127.0.0.1` entre
+l’interface et l’API peut empêcher l’envoi du cookie.
+
+Pour un environnement HTTPS, configure `COOKIE_SECURE=true`, garde une clé
+privée d’au moins 32 octets dans l’environnement et définis exactement les
+origines autorisées. Aucun secret ne doit être ajouté à Git.
+
 ```bash
 docker compose up --build -d
 docker compose ps --all
@@ -47,7 +95,7 @@ Compose attend le healthcheck `pg_isready` de PostgreSQL avant de lancer
 Alembic, puis attend la réussite de la migration avant de démarrer l'API.
 L'API passe healthy après une requête `SELECT 1` réussie; l'interface passe
 healthy quand sa page répond. Le conteneur `migrate` s'arrête avec le code 0
-lorsque la révision `0001_empty_baseline` a été appliquée. Pour vérifier la
+lorsque la révision `0002_member_auth` a été appliquée. Pour vérifier la
 révision :
 
 ```bash
@@ -72,17 +120,26 @@ npm ci --ignore-scripts --no-audit --no-fund --prefix frontend
 Les contrôles ciblés suivants sont disponibles :
 
 ```bash
-uv run --project backend --locked --extra dev ruff check backend/app backend/migrations
+uv run --project backend --locked --extra dev ruff check backend/app backend/migrations backend/tests
 uv run --project backend --locked python -m compileall -q backend/app backend/migrations
+PYTHONPATH=backend uv run --project backend --locked --no-sync python -m unittest discover -s backend/tests -p 'test_*.py'
 npm --prefix frontend run build
 docker compose config --quiet
 ```
 
-La CI exécute également le démarrage Compose, la migration ascendante et
-descendante sur sa base jetable et les vérifications de santé. Ce scaffold ne
-contient pas encore de suite de tests métier ni de scanner de dépendances dédié;
-aucune de ces validations n'est présentée comme une preuve de fonctionnalités
-Viewer ou Admin.
+QA rapporte cinq tests Auth réussis après le correctif TZ : quatre tests de
+contrat exécutent directement l'ASGI FastAPI avec `unittest` et SQLite en
+mémoire, et un test unitaire vérifie le rollover au changement de jour civil.
+Les tests de contrat couvrent validation, consentement, cookie, profil Viewer,
+erreurs de connexion, révocation à la déconnexion et au changement de mot de
+passe, origines et préflight CORS. Ruff passe sur `backend/app`,
+`backend/migrations` et `backend/tests`. Les captures Chromium headless
+desktop/mobile/inscription ont été comparées à V1; les écarts restent estimatifs
+et aucun diff quantitatif n'a été produit. La comparaison ne prouve pas une
+identité pixel à pixel ni une validation complète des formulaires ou parcours.
+La migration Docker/PostgreSQL n'a pas été vérifiée localement car le socket
+Docker a refusé l'accès. La CI inclut le build et le smoke test Compose, sans
+résultat CI revendiqué ici.
 
 Réinitialiser la base locale en supprimant son volume et toutes ses données :
 
@@ -90,13 +147,14 @@ Réinitialiser la base locale en supprimant son volume et toutes ses données :
 docker compose down --volumes
 ```
 
-La variable optionnelle `POSTGRES_PASSWORD` remplace le mot de passe local de
-démonstration. Ne réutilise jamais cette configuration ni ce mot de passe dans
-un environnement partagé ou de production. Les migrations s'appliquent via
+La variable `POSTGRES_PASSWORD` de `.env.example` est un mot de passe de
+démonstration réservé à la base locale. Ne la réutilise jamais dans un
+environnement partagé ou de production. Les migrations s'appliquent via
 `alembic upgrade head`; leur retour arrière de développement est
-`alembic downgrade base`, qui efface la ligne de version. Alembic conserve sa
-table interne `alembic_version` vide. Il n'y a encore aucun schéma produit à
-préserver.
+`alembic downgrade base`, qui efface les tables locales `users` et
+`auth_sessions` ajoutées par l’authentification ainsi que la ligne de version.
+Alembic conserve sa table interne `alembic_version`. Ne lance cette commande
+que si tu acceptes d’effacer les données locales.
 
 Les commandes reproductibles du socle sont aussi disponibles localement :
 
@@ -127,9 +185,9 @@ bloqué sur un service qui ne répond plus.
 La CI lance ces contrôles sur une pull request vers `dev` ou manuellement avec
 `workflow_dispatch`. `concurrency` annule un ancien run du même workflow et de
 la même ref quand un nouveau démarre. Elle préflight les manifestes, exécute le
-contrôle sécurité, installe les dépendances verrouillées, lance le lint et le
-build, puis joue le smoke test isolé. Il n'existe pas de déclencheur de push ni
-de publication.
+contrôle sécurité, installe les dépendances verrouillées, lance le lint, les
+tests Auth ASGI, le build et le smoke test isolé. Il n'existe pas de déclencheur
+de push ni de publication.
 
 CI utilise uniquement le runner GitHub-hosted standard `ubuntu-latest`. Le
 dépôt est public selon D-01; GitHub indique que ses runners standards sont

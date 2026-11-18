@@ -45,6 +45,10 @@ services:
       POSTGRES_DB: skkup_v2
       POSTGRES_USER: skkup_v2
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skkup-local-only}
+      TZ: Europe/Paris
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:?Set AUTH_TOKEN_SECRET in your environment or ignored .env file}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-http://localhost:3010,http://127.0.0.1:3010}
+      COOKIE_SECURE: ${COOKIE_SECURE:?Set COOKIE_SECURE=false for local HTTP, true behind HTTPS}
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
     depends_on:

@@ -13,6 +13,14 @@ Ce document propose un modèle conceptuel d’après le cahier actif et le
 profil. Ce n’est ni un schéma SQL ni la preuve que les tables V1 ont été
 vérifiées dans cette passe.
 
+Le lot #5 ajoute actuellement au schéma V2 les tables `users` et
+`auth_sessions` via Alembic, avec `password_hash`, rôle, état actif,
+`session_version`, date d'acceptation du règlement et dates de session,
+expiration et révocation. Cette mise à jour documentaire décrit l'artefact
+présent; elle ne certifie pas sa migration en environnement, son audit ni sa
+parité complète avec le schéma V1. Les tables d'appairage et de visionnage ne
+sont pas livrées dans #5 et restent dépendantes du lot #7.
+
 - **Décisions de stack :** PostgreSQL, SQLAlchemy 2 et Alembic.
 - **Décision de données :** démarrer sur une base V2 vide, sans migration
   implicite.
@@ -67,7 +75,7 @@ relisant le commit de référence avant le scaffold.
 
 | Domaine | Concepts | Invariants à concevoir | Sensibilité et limite |
 |---|---|---|---|
-| Comptes | Utilisateur, session web | Email unique; Viewer par défaut; session expirée/révocable; rôle Admin non modifiable par le client | Email et hash; ne jamais exposer le hash |
+| Comptes, état actuel du lot #5 | `users`, `auth_sessions`; `password_hash`, `session_version`, `terms_accepted_at`, dates et révocation | Email unique; Viewer par défaut; compte actif; session web expirée/révocable; rôle Admin non modifiable par le client. Le changement de mot de passe augmente `session_version` et révoque les sessions web V2. | Email et hash; ne jamais exposer le hash. scrypt pour le hash courant; aucun hash V1 importé |
 | Appairage | Code temporaire, appareil apparié | Usage unique, expiration, révocation; concurrence de consommation protégée | Credential distinct de la session web; empreinte plutôt que valeur claire |
 | Plateformes | Stream/catalogue, compte lié si nécessaire | Unicité plateforme + identifiant; désactivation sans perte d’historique utile | Aucun OAuth de plateforme ajouté dans ce périmètre |
 | Visionnage | Session, heartbeats, durée validée | Mesure côté serveur; état contrôlé; pas de double crédit lors des retries | Activité à minimiser et rétention à définir |

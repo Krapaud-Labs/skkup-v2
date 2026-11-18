@@ -2,11 +2,11 @@
 
 ## État
 
-Aucun actif V1 n'est copié ni retenu dans le dépôt V2. L'inventaire statique des usages du commit accepté est consigné ci-dessous; la provenance et les droits individuels ne sont pas établis, donc aucun actif n'est autorisé à copier par cette revue. Le visuel de barème fourni est une source documentaire, pas un actif produit à intégrer.
+Quatre médias Auth V1 sont copiés à l'identique dans `frontend/public/assets/auth/` sous l'autorisation propriétaire consignée plus bas. L'inventaire statique des usages du commit accepté est consigné ci-dessous. La provenance et la licence restent non documentées pour chaque fichier; cette autorisation de transfert ne constitue pas une licence générale. Aucun autre actif V1 n'est copié ici. Le visuel de barème fourni est une source documentaire, pas un actif produit à intégrer.
 
 ## Référence et méthode
 
-Source: `Krapaud-Labs/Skkup@fcc4767f3ece9efc069d1a1c413942067cb89c93`, consultée par lecture des objets Git. Le checkout V1 voisin était dirty et n'a pas été modifié. Les URL sont reliées au chemin source servi par le route handler Next; les médias à chemin dynamique sont reliés au générateur de récompenses; les copies extension sont reliées au script de build. Les octets ne sont pas extraits vers le projet V2.
+Source: `Krapaud-Labs/Skkup@fcc4767f3ece9efc069d1a1c413942067cb89`, vérifiée avec le connecteur GitHub et les objets Git du commit. Pour les quatre fichiers Auth, les SHA Git d'objet retournés par GitHub ont été comparés aux objets du commit avant extraction; le checkout V1 voisin, bien que dirty, n'a pas été modifié. Les URL sont reliées au chemin source servi par le route handler Next; les médias à chemin dynamique sont reliés au générateur de récompenses; les copies extension sont reliées au script de build. Seuls les quatre blobs Auth explicitement autorisés sont extraits vers le projet V2.
 
 SHA-256 recalculé sur les octets récupérés depuis chaque blob V1 avec `git cat-file blob <commit>:<path>` et SHA-256 standard. Reproduction possible pour un fichier avec `git -C ../Skkup cat-file blob <commit>:<path> | shasum -a 256`. Les dimensions et formats sont lus depuis les en-têtes PNG/WebP. Les callsites viennent des références statiques de `frontend/assets/README.md`, `frontend/src/app/assets/[...path]/route.ts`, `frontend/src/components/ui/SkkupIcon.tsx`, `frontend/src/lib/scratch-card-reward.ts` et `extension/scripts/build.mjs`. La présence d'un callsite prouve une référence source, pas un rendu navigateur ou une inclusion dans une distribution publiée. La table couvre 44 URL littérales, 10 chemins scratch dynamiques et 4 fichiers copiés au build de l'extension.
 
@@ -91,6 +91,21 @@ Les trois PNG de marque `apple-icon.png`, `skkup-s-favicon.png` et `skkup-favico
 
 Le commit V1 contient 72 fichiers image sous `frontend/assets/` et `frontend/public/assets/`. Les 58 lignes ci-dessus couvrent les URL runtime littérales, chemins scratch générés et sources copiées au package extension. Les fichiers restants ou sources/visuels promotionnels/documentaires sont exclus tant qu'un callsite runtime ou une copie de build n'est pas prouvé. Leur provenance et leurs droits ne sont pas hérités des autres lignes.
 
-## Règle avant toute copie dans V2
+## Transfert autorisé des médias du parcours Auth V2
 
-Avant de copier un actif, faire valider son usage et ses droits fichier par fichier, conserver ce chemin source et cette SHA-256 comme provenance, comparer l'actif choisi au rendu de référence et mettre à jour ce manifeste avec la destination V2. Ne pas réutiliser un média seulement parce qu'il existe dans l'arbre V1.
+Le propriétaire a autorisé le transfert à l'identique de ces quatre actifs Auth référencés par la V1 au commit `Krapaud-Labs/Skkup@fcc4767f3ece9efc069d1a1c413942067cb89c93`, conformément au périmètre des sections 4.1 et 4.1.1 du cahier accepté. Cette autorisation est limitée aux chemins source et destinations listés ci-dessous. Le connecteur GitHub a fourni les SHA des blobs source; chaque SHA Git a été vérifié contre le commit avant extraction. Le SHA-256 après copie est identique à celui du manifeste source.
+
+| Usage Auth V1 et preuve du callsite | Chemin source V1 | Destination V2 | Format, dimensions, octets | SHA-256 source et copie |
+| --- | --- | --- | --- | --- |
+| Wordmark affiché par `EnteteVitrine` dans l'en-tête partagé, dont Connexion et Inscription; `src` explicite dans `frontend/src/components/navigation/EnteteVitrine.tsx` | `frontend/assets/brand/logos/skkup-wordmark-transparent.png` | `frontend/public/assets/auth/skkup-wordmark-transparent.png` | PNG 2072x759, 1230978 octets | `be96ff6a4a57dc34ea4462589e6b47d683ff18e84ca8881244ec9cae340dd718` |
+| Icône de bénéfice « points »; `LocalizedAuthIntro` appelle `SkkupIcon name="points"`, mappé au PNG dans `SkkupIcon.tsx` | `frontend/assets/icons/ui/points.png` | `frontend/public/assets/auth/points.png` | PNG 1254x1254, 1110702 octets | `00b2ef947e70b77659f8c5282b5a384fe6e9d815e52735b740e23d20c28670cb` |
+| Icône de bénéfice « ticket »; `LocalizedAuthIntro` appelle `SkkupIcon name="ticket"`, mappé au PNG dans `SkkupIcon.tsx` | `frontend/assets/icons/ui/ticket.png` | `frontend/public/assets/auth/ticket.png` | PNG 1254x1254, 848406 octets | `86d8d0bb818943c69c6ad31eb15f252f45eb8ebe74f7bb969a221f018ea96316` |
+| Icône du bouton fermant le règlement dans `FormulaireAuth`; appel `SkkupIcon name="close"`, mappé au PNG dans `SkkupIcon.tsx` | `frontend/assets/icons/ui/close.png` | `frontend/public/assets/auth/close.png` | PNG 1254x1254, 842666 octets | `4f31463740e5912042e669ab74dc5787c424584189692293216bd24809a7b586` |
+
+Les callsites ont été relus au commit V1 indiqué. `frontend/src/app/connexion/page.tsx` et `frontend/src/app/inscription/page.tsx` rendent `EnteteVitrine`, `LocalizedAuthIntro` et `FormulaireAuth`; `EnteteVitrine.tsx` contient la source du wordmark. Pour les icônes, `LocalizedAuthIntro.tsx` référence individuellement `points` et `ticket`, tandis que `FormulaireAuth.tsx` référence `close`; `frontend/src/components/ui/SkkupIcon.tsx` relie ces noms aux chemins PNG du manifeste. Les quatre SHA-256 ont été recalculés après copie avec `shasum -a 256` et correspondent aux valeurs ci-dessus.
+
+**Provenance et licence :** non documentées pour chacun des quatre fichiers. L'autorisation propriétaire de transfert consignée dans cette section ne constitue pas une licence générale; la présence de blobs dans un dépôt GitHub public ne prouve pas une licence. Aucun autre média n'a été extrait. Cette opération confirme les usages source et l'identité binaire, pas le rendu navigateur ni la parité visuelle.
+
+## Règle pour les autres actifs
+
+Tout transfert d'un autre média V1 requiert une autorisation propriétaire applicable au fichier, un callsite runtime ou une inclusion de build démontrée, et une entrée dans ce manifeste avec source, usage, SHA-256, destination et provenance/licence connue. La présence d'un fichier dans l'arbre V1 ou dans ce dépôt, seule, ne vaut pas autorisation de transfert ni preuve de licence.

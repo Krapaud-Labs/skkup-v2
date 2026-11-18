@@ -5,17 +5,17 @@ Ce dossier décrit le périmètre, les parcours, la conception et les décisions
 | Document | Rôle | État |
 | --- | --- | --- |
 | [Vision et périmètre](product/vision-and-scope.md) | objectifs et frontières | cadré |
-| [Stories](product/user-stories.md) | capacités et critères | cadré, parité V1 à inventorier |
+| [Stories](product/user-stories.md) | capacités et critères | US-02: 5/5 tests Auth et Ruff passent; comparaison visuelle Auth effectuée avec écarts estimatifs; parité complète et PostgreSQL/Docker à vérifier |
 | [Parcours](product/user-flows.md) | étapes et erreurs | cadré |
 | [Architecture](design/architecture.md) | composants et flux | baseline à valider |
 | [Direction visuelle](design/visual-direction.md) | direction Dashboard, densité, défilement et modales | exigences approuvées, rendu à vérifier par lot |
-| [Données](design/data-model.md) | entités, règles et rétention | conceptuel |
-| [Contrats API](design/api-contracts.md) | HTTP et temps réel | à confronter à V1 |
+| [Données](design/data-model.md) | entités, règles et rétention | conceptuel; tables Auth/session #5 présentes, non validées |
+| [Contrats API](design/api-contracts.md) | HTTP et temps réel | Auth/session #5: 5/5 tests Auth et Ruff passent; comparaison visuelle effectuée sans mesure quantitative; parité complète et migration PostgreSQL en attente; autres contrats à confronter à V1 |
 | [Menaces](security/threat-model.md) | menaces et contrôles | revue initiale |
 | [Décisions](project-management/decision-log.md) | décisions et inconnues | vivant |
 | [Suivi GitHub Projects](project-management/github-project.md) | choix et activation du suivi | pending_activation |
 | [Roadmap](delivery/roadmap.md) | lots ordonnés | cadrage |
-| [Readiness](design/design-readiness.md) | porte avant implémentation | cadrage approved, validations produit par lot |
+| [Readiness](design/design-readiness.md) | porte avant implémentation | cadrage approved; validations produit par lot, dont Auth #5, en attente |
 | [Cahier archivé](project-management/cahier-des-charges/skkup-v2/) | source immuable | préservée |
 
 ## Limites

@@ -23,6 +23,9 @@ print(*ports)
 PY
 )
 export DB_HOST_PORT="$db_port" API_HOST_PORT="$api_port" WEB_PORT="$web_port"
+export AUTH_TOKEN_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+export AUTH_ALLOWED_ORIGINS="http://localhost:${web_port},http://127.0.0.1:${web_port}"
+export COOKIE_SECURE=false
 
 compose=(docker compose --env-file /dev/null --project-name "$project" --file compose.yaml)
 stage="initialization"
@@ -74,9 +77,9 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
-stage="Alembic baseline assertion"
+stage="Alembic head revision assertion"
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
-test "$revision" = "0001_empty_baseline"
+test "$revision" = "0002_member_auth"
 
 stage="Alembic downgrade and empty-schema assertions"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini downgrade base
@@ -87,6 +90,6 @@ test "$product_tables" = "0"
 stage="Alembic re-upgrade assertion"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini upgrade head
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
-test "$revision" = "0001_empty_baseline"
+test "$revision" = "0002_member_auth"
 
 echo "Scaffold smoke test passed (isolated project: $project; cleanup removes only its volume)"

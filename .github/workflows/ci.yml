@@ -32,7 +32,19 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --project backend --locked --extra dev && npm ci --ignore-scripts --no-audit --no-fund --prefix frontend
       - name: Lint backend scaffold
-        run: uv run --project backend --locked --extra dev ruff check backend/app backend/migrations
+        run: uv run --project backend --locked --extra dev ruff check backend/app backend/migrations backend/tests
+      - name: Test backend auth contract
+        env:
+          PYTHONPATH: backend
+        run: uv run --project backend --locked --no-sync python -m unittest discover -s backend/tests -p 'test_*.py'
+      - name: Prepare ephemeral Compose environment
+        shell: bash
+        run: |
+          auth_token_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          printf '::add-mask::%s\n' "$auth_token_secret"
+          printf 'AUTH_TOKEN_SECRET=%s\n' "$auth_token_secret" >> "$GITHUB_ENV"
+          printf 'AUTH_ALLOWED_ORIGINS=http://localhost:3010,http://127.0.0.1:3010\n' >> "$GITHUB_ENV"
+          printf 'COOKIE_SECURE=false\n' >> "$GITHUB_ENV"
       - name: Build web and container images
         run: npm --prefix frontend run build && docker compose build
       - name: Smoke test isolated local scaffold

@@ -9,15 +9,12 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
+
+from app.timezone import business_timezone
 
 SESSION_SECONDS = 24 * 60 * 60
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() != "false"
 COOKIE_NAME = "__Host-vr_session" if COOKIE_SECURE else "vr_session"
-
-
-def _business_timezone() -> ZoneInfo:
-    return ZoneInfo(os.environ.get("TZ", "Europe/Paris"))
 
 
 def _b64encode(value: bytes) -> str:
@@ -73,7 +70,7 @@ def create_session_token(
         "sub": user_id,
         "email": email,
         "sessionVersion": session_version,
-        "jourConnexion": now.astimezone(_business_timezone()).date().isoformat(),
+        "jourConnexion": now.astimezone(business_timezone()).date().isoformat(),
         "sid": session_id,
         "iat": int(now.timestamp()),
         "exp": int(expires.timestamp()),
@@ -106,7 +103,7 @@ def decode_session_token(token: str) -> dict[str, Any] | None:
         if not isinstance(claims.get("sessionVersion"), int):
             return None
         connection_day = claims.get("jourConnexion")
-        if connection_day != now.astimezone(_business_timezone()).date().isoformat():
+        if connection_day != now.astimezone(business_timezone()).date().isoformat():
             return None
         return claims
     except (RuntimeError, ValueError, TypeError, json.JSONDecodeError):

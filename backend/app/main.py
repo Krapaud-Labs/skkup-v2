@@ -11,9 +11,11 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.auth.routes import router as auth_router
 from app.db import engine
+from app.points.routes import router as points_router
 
 app = FastAPI(title="Skkup V2 API", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(auth_router)
+app.include_router(points_router)
 allowed_origins = [
     origin.strip().rstrip("/")
     for origin in os.environ.get(

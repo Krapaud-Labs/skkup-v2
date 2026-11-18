@@ -17,13 +17,16 @@ os.environ.setdefault("AUTH_TOKEN_SECRET", "test-only-secret-with-at-least-32-by
 os.environ.setdefault("AUTH_ALLOWED_ORIGINS", "http://localhost:3010")
 os.environ["COOKIE_SECURE"] = "false"
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.auth.models import AuthSession, Base, User
+from app.auth.routes import _attempts, _rate_lock
 from app.db import get_db as app_get_db
 from app.main import app
+from app.points.models import DailyCheckin, PointsTransaction, RewardTicket, ScratchCardGrant
+from app.points.service import apply_points_change
 
 ORIGIN = "http://localhost:3010"
 PASSWORD = "StrongPassword1!"
@@ -124,8 +127,14 @@ class AuthContractTests(unittest.TestCase):
         test_engine.dispose()
 
     def setUp(self) -> None:
+        with _rate_lock:
+            _attempts.clear()
         with Session(test_engine) as session:
             session.query(AuthSession).delete()
+            session.query(RewardTicket).delete()
+            session.query(ScratchCardGrant).delete()
+            session.query(PointsTransaction).delete()
+            session.query(DailyCheckin).delete()
             session.query(User).delete()
             session.commit()
 
@@ -221,6 +230,92 @@ class AuthContractTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get("access-control-allow-origin"), ORIGIN)
         self.assertEqual(headers.get("access-control-allow-credentials"), "true")
+
+    def test_viewer_points_endpoints_are_session_bound_and_checkin_replays(self) -> None:
+        status, _, _ = request("GET", "/me/points")
+        self.assertEqual(status, 401)
+
+        first_cookie, _ = self.register("viewer-one@example.test")
+        second_cookie, _ = self.register("viewer-two@example.test")
+        headers = self.auth_headers(first_cookie)
+        status, _, body = request("POST", "/me/daily-checkin", headers=headers)
+        self.assertEqual(status, 200, body.decode())
+        first_result = json.loads(body)
+        self.assertEqual(first_result["streakActuel"], 1)
+        self.assertEqual(
+            [ticket["categorie"] for ticket in first_result["ticketsAttribues"]],
+            ["CLASSIC"],
+        )
+        self.assertEqual(first_result["pointsCredites"], 0)
+        self.assertIsNone(first_result["carteDebloquee"])
+
+        status, _, body = request("POST", "/me/daily-checkin", headers=headers)
+        self.assertEqual(status, 200, body.decode())
+        replay = json.loads(body)
+        self.assertEqual(replay, first_result)
+
+        status, _, body = request("GET", "/me/points", headers=headers)
+        first_summary = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(first_summary["soldePoints"], 0)
+        self.assertEqual(first_summary["ticketsDisponibles"], {"CLASSIC": 1})
+
+        status, _, body = request("GET", "/me", headers=headers)
+        profile = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            set(profile),
+            {
+                "id",
+                "email",
+                "pseudo",
+                "role",
+                "soldePoints",
+                "streakActuel",
+                "streakMax",
+                "derniereVisiteAt",
+                "createdAt",
+            },
+        )
+
+        status, _, body = request("GET", "/me/points/history", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["total"], 0)
+
+        with Session(test_engine, expire_on_commit=False) as session:
+            user = session.scalar(select(User).where(User.email == "viewer-one@example.test"))
+            apply_points_change(
+                session,
+                user_id=user.id,
+                amount=10,
+                type="WATCH_TIME",
+                idempotency_key="watch:contract-session",
+            )
+            session.commit()
+
+        status, _, body = request("GET", "/me/points/history", headers=headers)
+        history = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(history["total"], 1)
+        self.assertEqual(history["transactions"][0]["type"], "WATCH_TIME")
+        self.assertEqual(history["transactions"][0]["montant"], 10)
+        self.assertEqual(history["transactions"][0]["userId"], user.id)
+        self.assertIsNone(history["transactions"][0]["watchSessionId"])
+        self.assertIsNone(history["transactions"][0]["shopPurchaseId"])
+        self.assertIn("createdAt", history["transactions"][0])
+
+        status, _, body = request("GET", "/me/points", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["soldePoints"], 10)
+
+        status, _, body = request(
+            "GET", "/me/reward-tickets", headers=self.auth_headers(second_cookie)
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["total"], 0)
+
+        status, _, _ = request("POST", "/me/daily-checkin")
+        self.assertEqual(status, 403)
 
     def test_login_errors_are_generic_and_logout_revokes_session(self) -> None:
         cookie, _ = self.register()

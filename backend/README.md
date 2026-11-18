@@ -337,8 +337,12 @@ le catalogue sponsor de référence et son index d’activité.
 `0008_admin_fraud_flags` ajoute les signalements liés aux utilisateurs sans
 lien vers `WatchSession`, réservé au lot #7.
 `0009_admin_raffle_configuration` ajoute la configuration Admin des tirages
-et des lots sans champs de résultat du tirage. Chaque migration peut être
-annulée avec son opération de retour arrière.
+et des lots. `0010_scratch_and_raffle_draws` ajoute les résultats persistants
+des tickets à gratter, les participations distinctes aux tirages, leurs
+gagnants et l’audit du tirage. Le smoke test Compose vérifie désormais que le
+head Alembic est `0010_scratch_and_raffle_draws`, y compris après une montée
+depuis `base`. Chaque migration peut être annulée avec son opération de retour
+arrière.
 
 Ces migrations s’appliquent à la base V2 vide et n’importent ni ne modifient
 les données V1 ou de production.

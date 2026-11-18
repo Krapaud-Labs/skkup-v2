@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.admin.models import Raffle, RaffleTicket
 from app.auth.models import Base, User
 from app.points.models import DailyCheckin, PointsTransaction, RewardTicket, ScratchCardGrant
 from app.points.service import (
@@ -20,6 +21,9 @@ from app.points.service import (
     apply_points_change,
     award_reward_ticket,
     checkin_daily,
+    scratch_legacy_card,
+    scratch_reward_outcome,
+    scratch_reward_ticket,
 )
 
 ENGINE = create_engine("sqlite://")
@@ -185,6 +189,109 @@ class ViewerPointsServiceTests(unittest.TestCase):
             session.commit()
         self.assertEqual(first.category, "CLASSIC")
         self.assertEqual(first.id, replay.id)
+
+    def test_classic_scratch_distribution_uses_exact_integer_boundaries(self) -> None:
+        cases = {
+            0: ("NO_WIN", 0, 0),
+            29: ("NO_WIN", 0, 0),
+            30: ("POINTS", 5, 0),
+            44: ("POINTS", 5, 0),
+            45: ("POINTS", 10, 0),
+            54: ("POINTS", 10, 0),
+            55: ("POINTS", 15, 0),
+            59: ("POINTS", 15, 0),
+            60: ("SCRATCH_TICKET", 0, 1),
+            99: ("SCRATCH_TICKET", 0, 1),
+        }
+        for roll, expected in cases.items():
+            with self.subTest(roll=roll):
+                self.assertEqual(
+                    scratch_reward_outcome("CLASSIC", lambda _, roll=roll: roll), expected
+                )
+
+    def test_premium_scratch_known_outcomes_and_unresolved_one_percent(self) -> None:
+        cases = {
+            0: ("POINTS", 30, 0),
+            89: ("POINTS", 30, 0),
+            90: ("POINTS", 40, 0),
+            94: ("POINTS", 40, 0),
+            95: ("POINTS", 50, 0),
+            98: ("POINTS", 50, 0),
+        }
+        for roll, expected in cases.items():
+            with self.subTest(roll=roll):
+                self.assertEqual(
+                    scratch_reward_outcome("PREMIUM", lambda _, roll=roll: roll), expected
+                )
+        with self.assertRaises(HTTPException) as error:
+            scratch_reward_outcome("PREMIUM", lambda _: 99)
+        self.assertEqual(error.exception.status_code, 409)
+
+    def test_legacy_ticket_reward_creates_scratch_classic_not_raffle_entry(self) -> None:
+        with Session(ENGINE, expire_on_commit=False) as session:
+            checkin = DailyCheckin(
+                id="checkin-legacy",
+                user_id="viewer-1",
+                local_day=datetime(2030, 1, 1).date(),
+                streak_after=3,
+                max_streak_after=3,
+                points_balance_after=0,
+                scratch_card_due=True,
+            )
+            card = ScratchCardGrant(
+                id="scratch-legacy",
+                user_id="viewer-1",
+                daily_checkin_id=checkin.id,
+                streak_milestone=3,
+                legacy_ticket_preset=False,
+            )
+            raffle = Raffle(
+                id="raffle-open",
+                titre="Ouvert",
+                description="Test",
+                date_ouverture=datetime(2020, 1, 1, tzinfo=UTC),
+                date_tirage=datetime(2099, 1, 1, tzinfo=UTC),
+                statut="OUVERT",
+                engagement_graine="a" * 64,
+            )
+            session.add_all([checkin, card, raffle])
+            session.commit()
+            result = scratch_legacy_card(session, "viewer-1", card.id, randbelow=lambda _: 99)
+            scratch_tickets = list(session.scalars(select(RewardTicket)))
+            raffle_tickets = list(session.scalars(select(RaffleTicket)))
+        self.assertEqual(result["outcome"]["type"], "SCRATCH_TICKET")
+        self.assertEqual(len(scratch_tickets), 1)
+        self.assertEqual(scratch_tickets[0].category, "CLASSIC")
+        self.assertEqual(scratch_tickets[0].source, "SCRATCH_CARD")
+        self.assertEqual(raffle_tickets, [])
+
+    def test_premium_scratch_is_blocked_before_rng_until_one_percent_is_decided(self) -> None:
+        with Session(ENGINE, expire_on_commit=False) as session:
+            ticket = RewardTicket(
+                id="premium-pending",
+                user_id="viewer-1",
+                category="PREMIUM",
+                source="DAILY_LOGIN",
+                source_id="source-1",
+                idempotency_key="premium-pending",
+            )
+            session.add(ticket)
+            session.commit()
+            with self.assertRaises(HTTPException) as error:
+                scratch_reward_ticket(
+                    session,
+                    "viewer-1",
+                    ticket.id,
+                    randbelow=lambda _: self.fail(
+                        "RNG must not run for unresolved Premium tickets"
+                    ),
+                )
+            self.assertEqual(error.exception.status_code, 409)
+            session.refresh(ticket)
+            self.assertIsNone(ticket.scratched_at)
+            self.assertIsNone(ticket.consumed_at)
+            self.assertEqual(session.scalar(select(func.count()).select_from(PointsTransaction)), 0)
+            self.assertEqual(session.scalar(select(func.count()).select_from(RaffleTicket)), 0)
 
     def test_checkin_rolls_back_all_mutations_when_award_fails(self) -> None:
         now = datetime(2030, 4, 1, 9, tzinfo=PARIS)

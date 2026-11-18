@@ -22,15 +22,20 @@ from app.admin.users import router as admin_users_router
 from app.auth.routes import router as auth_router
 from app.db import engine
 from app.points.routes import router as points_router
+from app.raffles import admin_draw_router, viewer_router
+from app.raffles import public_router as public_raffles_router
 
 app = FastAPI(title="Skkup V2 API", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(auth_router)
 app.include_router(points_router)
+app.include_router(viewer_router)
+app.include_router(public_raffles_router)
 app.include_router(admin_users_router)
 app.include_router(admin_audit_router)
 app.include_router(admin_dashboard_router)
 app.include_router(admin_fraud_flags_router)
 app.include_router(admin_raffles_router)
+app.include_router(admin_draw_router)
 app.include_router(admin_sponsors_router)
 app.include_router(admin_announcements_router)
 app.include_router(public_announcements_router)

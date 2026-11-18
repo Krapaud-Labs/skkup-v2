@@ -1,5 +1,6 @@
 """Transactional points ledger and daily Viewer progression operations."""
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.admin.models import Raffle
 from app.auth.models import User
 from app.points.models import DailyCheckin, PointsTransaction, RewardTicket, ScratchCardGrant
 from app.timezone import business_day
@@ -27,6 +29,7 @@ POINTS_TRANSACTION_TYPES = frozenset(
         "CARTE_A_GRATTER",
         "AJUSTEMENT_ADMIN",
         "SHOP_PURCHASE",
+        "RAFFLE_ENTRY",
     }
 )
 
@@ -379,9 +382,310 @@ def reward_ticket_inventory(db: Session, user_id: str, *, page: int, limit: int)
                 "categorie": ticket.category,
                 "origine": ticket.source,
                 "obtenuLe": ticket.created_at,
+                "prepare": ticket.prepared_at is not None,
             }
             for ticket in tickets
         ],
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "totalPages": (total + limit - 1) // limit,
+    }
+
+
+def scratch_reward_outcome(category: str, randbelow=secrets.randbelow) -> tuple[str, int, int]:
+    """Select D-07 scratch outcomes with injectable integer RNG for tests."""
+    roll = randbelow(100)
+    if category == "CLASSIC":
+        if roll < 30:
+            return "NO_WIN", 0, 0
+        if roll < 45:
+            return "POINTS", 5, 0
+        if roll < 55:
+            return "POINTS", 10, 0
+        if roll < 60:
+            return "POINTS", 15, 0
+        return "SCRATCH_TICKET", 0, 1
+    if category == "PREMIUM":
+        if roll < 90:
+            return "POINTS", 30, 0
+        if roll < 95:
+            return "POINTS", 40, 0
+        if roll < 99:
+            return "POINTS", 50, 0
+        # The reward category is known, but its participation semantics are
+        # deliberately blocked until the owner resolves the 1% behavior.
+        raise HTTPException(
+            status_code=409,
+            detail="Le gain Premium à 1 % nécessite une décision produit.",
+        )
+    raise ValueError("Unsupported scratch ticket category.")
+
+
+def _scratch_card_view(card: ScratchCardGrant) -> dict:
+    return {
+        "id": card.id,
+        "streakMilestone": card.streak_milestone,
+        "createdAt": _datetime_text(card.created_at),
+        "prepared": card.prepared_at is not None,
+    }
+
+
+def scratch_cards_inventory(db: Session, user_id: str, *, page: int, limit: int) -> dict:
+    page, limit = max(page, 1), min(max(limit, 1), 100)
+    where = (ScratchCardGrant.user_id == user_id) & ScratchCardGrant.scratched_at.is_(None)
+    cards = list(
+        db.scalars(
+            select(ScratchCardGrant)
+            .where(where)
+            .order_by(ScratchCardGrant.created_at.desc(), ScratchCardGrant.id.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    )
+    total = db.scalar(select(func.count()).select_from(ScratchCardGrant).where(where)) or 0
+    return {
+        "cards": [_scratch_card_view(card) for card in cards],
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "totalPages": (total + limit - 1) // limit,
+    }
+
+
+def prepare_scratch_card(db: Session, user_id: str, card_id: str) -> dict:
+    card = db.scalar(
+        select(ScratchCardGrant)
+        .where(ScratchCardGrant.id == card_id, ScratchCardGrant.user_id == user_id)
+        .with_for_update()
+    )
+    if card is None:
+        raise HTTPException(status_code=404, detail="Carte à gratter introuvable.")
+    if card.scratched_at is not None:
+        raise HTTPException(status_code=409, detail="Cette carte a déjà été grattée.")
+    if card.prepared_at is None:
+        card.prepared_at = datetime.now(UTC)
+        db.commit()
+    return {"id": card.id, "prepared": True}
+
+
+def prepare_reward_ticket(db: Session, user_id: str, ticket_id: str) -> dict:
+    ticket = db.scalar(
+        select(RewardTicket)
+        .where(RewardTicket.id == ticket_id, RewardTicket.user_id == user_id)
+        .with_for_update()
+    )
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket à gratter introuvable.")
+    if ticket.scratched_at is not None or ticket.consumed_at is not None:
+        raise HTTPException(status_code=409, detail="Ce ticket a déjà été gratté.")
+    if ticket.prepared_at is None:
+        ticket.prepared_at = datetime.now(UTC)
+        db.commit()
+    return {"id": ticket.id, "prepared": True}
+
+
+def _legacy_card_points(milestone: int) -> int:
+    return {3: 10, 7: 15, 14: 25, 30: 40}.get(milestone, 10)
+
+
+def scratch_legacy_card(
+    db: Session, user_id: str, card_id: str, *, randbelow=secrets.randbelow
+) -> dict:
+    try:
+        card = db.scalar(
+            select(ScratchCardGrant)
+            .where(ScratchCardGrant.id == card_id, ScratchCardGrant.user_id == user_id)
+            .with_for_update()
+        )
+        if card is None:
+            raise HTTPException(status_code=404, detail="Carte à gratter introuvable.")
+        if card.scratched_at is not None:
+            raise HTTPException(status_code=409, detail="Cette carte a déjà été grattée.")
+        if card.prepared_at is None:
+            card.prepared_at = datetime.now(UTC)
+        points = _legacy_card_points(card.streak_milestone)
+        roll = randbelow(100)
+        if card.legacy_ticket_preset or roll >= 95:
+            open_raffle = db.scalar(
+                select(Raffle)
+                .where(Raffle.statut == "OUVERT", Raffle.date_tirage > datetime.now(UTC))
+                .order_by(Raffle.date_tirage)
+                .limit(1)
+                .with_for_update()
+            )
+            if open_raffle:
+                outcome, amount, ticket_count = "SCRATCH_TICKET", 0, 1
+                award_reward_ticket(
+                    db,
+                    user_id=user_id,
+                    category="CLASSIC",
+                    source="SCRATCH_CARD",
+                    source_id=card.id,
+                    idempotency_key=f"scratch-card:{card.id}",
+                )
+            else:
+                outcome, amount, ticket_count = "POINTS", points, 0
+        elif roll < 70:
+            outcome, amount, ticket_count = "POINTS", points, 0
+        else:
+            outcome, amount, ticket_count = "NO_WIN", 0, 0
+        card.outcome_type, card.outcome_points, card.outcome_tickets = outcome, amount, ticket_count
+        card.scratched_at = datetime.now(UTC)
+        transaction = None
+        if amount:
+            transaction = apply_points_change(
+                db,
+                user_id=user_id,
+                amount=amount,
+                type="CARTE_A_GRATTER",
+                idempotency_key=f"scratch-card-points:{card.id}",
+            )
+        elif outcome == "NO_WIN":
+            # The ledger represents the zero point outcome and ensures it is auditable.
+            transaction = PointsTransaction(
+                id=str(uuid4()),
+                user_id=user_id,
+                amount=0,
+                balance_after=db.get(User, user_id).points_balance,
+                type="CARTE_A_GRATTER",
+                idempotency_key=f"scratch-card-points:{card.id}",
+            )
+            db.add(transaction)
+        db.commit()
+        return {
+            "id": card.id,
+            "category": "LEGACY",
+            "gratte": True,
+            "outcome": {
+                "type": outcome,
+                "pointsAwarded": amount,
+                "scratchTicketsAwarded": ticket_count,
+            },
+            "soldePoints": transaction.balance_after
+            if transaction
+            else db.get(User, user_id).points_balance,
+        }
+    except Exception:
+        db.rollback()
+        raise
+
+
+def scratch_reward_ticket(
+    db: Session, user_id: str, ticket_id: str, *, randbelow=secrets.randbelow
+) -> dict:
+    try:
+        ticket = db.scalar(
+            select(RewardTicket)
+            .where(RewardTicket.id == ticket_id, RewardTicket.user_id == user_id)
+            .with_for_update()
+        )
+        if ticket is None:
+            raise HTTPException(status_code=404, detail="Ticket à gratter introuvable.")
+        if ticket.scratched_at is not None or ticket.consumed_at is not None:
+            raise HTTPException(status_code=409, detail="Ce ticket a déjà été gratté.")
+        if ticket.category == "PREMIUM":
+            raise HTTPException(
+                status_code=409,
+                detail="Le résultat du ticket Premium nécessite une décision produit.",
+            )
+        outcome, amount, ticket_count = scratch_reward_outcome(ticket.category, randbelow)
+        now = datetime.now(UTC)
+        ticket.prepared_at = ticket.prepared_at or now
+        ticket.scratched_at = now
+        ticket.consumed_at = now
+        ticket.outcome_type, ticket.outcome_points, ticket.outcome_tickets = (
+            outcome,
+            amount,
+            ticket_count,
+        )
+        user = db.scalar(select(User).where(User.id == user_id).with_for_update())
+        if user is None:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+        if amount:
+            apply_points_change(
+                db,
+                user_id=user_id,
+                amount=amount,
+                type="CARTE_A_GRATTER",
+                idempotency_key=f"reward-ticket-points:{ticket.id}",
+            )
+            db.refresh(user)
+        created_count = 0
+        for index in range(ticket_count):
+            award_reward_ticket(
+                db,
+                user_id=user_id,
+                category="CLASSIC",
+                source="SCRATCH_CARD",
+                source_id=ticket.id,
+                idempotency_key=f"reward-ticket:{ticket.id}:{index}",
+            )
+            created_count += 1
+        db.commit()
+        return {
+            "id": ticket.id,
+            "category": ticket.category,
+            "gratte": True,
+            "outcome": {
+                "type": outcome,
+                "pointsAwarded": amount,
+                "scratchTicketsAwarded": created_count,
+            },
+            "soldePoints": user.points_balance,
+        }
+    except Exception:
+        db.rollback()
+        raise
+
+
+def scratch_history(db: Session, user_id: str, *, page: int, limit: int) -> dict:
+    page, limit = max(page, 1), min(max(limit, 1), 100)
+    cards = list(
+        db.scalars(
+            select(ScratchCardGrant)
+            .where(ScratchCardGrant.user_id == user_id, ScratchCardGrant.scratched_at.is_not(None))
+            .order_by(ScratchCardGrant.scratched_at.desc())
+        )
+    )
+    tickets = list(
+        db.scalars(
+            select(RewardTicket)
+            .where(RewardTicket.user_id == user_id, RewardTicket.scratched_at.is_not(None))
+            .order_by(RewardTicket.scratched_at.desc())
+        )
+    )
+    rows = [
+        {
+            "sourceType": "LEGACY_CARD",
+            "id": c.id,
+            "category": "LEGACY",
+            "streakMilestone": c.streak_milestone,
+            "outcome": c.outcome_type,
+            "pointsAwarded": c.outcome_points or 0,
+            "scratchTicketsAwarded": c.outcome_tickets or 0,
+            "createdAt": _datetime_text(c.created_at),
+            "scratchedAt": _datetime_text(c.scratched_at),
+        }
+        for c in cards
+    ] + [
+        {
+            "sourceType": "REWARD_TICKET",
+            "id": t.id,
+            "category": t.category,
+            "streakMilestone": None,
+            "outcome": t.outcome_type,
+            "pointsAwarded": t.outcome_points or 0,
+            "scratchTicketsAwarded": t.outcome_tickets or 0,
+            "createdAt": _datetime_text(t.created_at),
+            "scratchedAt": _datetime_text(t.scratched_at),
+        }
+        for t in tickets
+    ]
+    rows.sort(key=lambda row: row["scratchedAt"], reverse=True)
+    total = len(rows)
+    return {
+        "items": rows[(page - 1) * limit : page * limit],
         "page": page,
         "limit": limit,
         "total": total,

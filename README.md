@@ -106,7 +106,7 @@ Compose attend le healthcheck `pg_isready` de PostgreSQL avant de lancer
 Alembic, puis attend la réussite de la migration avant de démarrer l'API.
 L'API passe healthy après une requête `SELECT 1` réussie; l'interface passe
 healthy quand sa page répond. Le conteneur `migrate` s'arrête avec le code 0
-lorsque la révision `0002_member_auth` a été appliquée. Pour vérifier la
+lorsque la révision `0003_viewer_points` a été appliquée. Pour vérifier la
 révision :
 
 ```bash

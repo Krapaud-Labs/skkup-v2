@@ -11,7 +11,7 @@ Portée : cadrage de conception seulement; les préconditions d’implémentatio
 - [x] Architecture, données, contrats API et modèle de menace documentés en draft.
 - [x] Décisions et roadmap consignées; archive du cahier préservée.
 - [x] Inventaire statique de parité V1 relu; les divergences métier de récompenses couvertes sont arbitrées par D-14 à D-16.
-- [x] Direction des dashboards et critères visuels de cadrage relus selon D-17 et D-18; les contrôles de rendu restent des préconditions par lot.
+- [x] Direction de cadrage D-17/D-18 relue et approuvée le 2026-11-16; exigence propriétaire D-19 ajoutée au 2026-11-18. La validation des écrans, du scroll global et des modales reste une précondition par lot, sans revendiquer une revue antérieure de D-19.
 - [x] Relecture indépendante du cadrage de conception achevée; Auditeur PASS le 2026-11-16.
 - [x] Scan des documents de conception sans marqueur de gabarit restant; PASS le 2026-11-16.
 
@@ -457,11 +457,17 @@ séparés selon autorisation serveur.
 
 Le propriétaire a validé la candidate V1 pour la palette et le langage de
 surface bleu nuit, les accents violet/cyan et un glow discret (D-18). Les
-tokens V1 correspondants restent la référence de cette direction. Cette
-approbation ne fixe pas l’agencement, la densité, les breakpoints V2, les
-dimensions des panneaux ou les états détaillés; ces éléments restent à valider
-techniquement selon les critères de `docs/design/visual-direction.md`. Les
-actifs, usages runtime et sources copiées au package sont inventoriés dans
+tokens V1 correspondants restent la référence de cette direction. Le 2026-11-18,
+il a également fixé D-19 : une vue Dashboard professionnelle et agréable dans
+le thème du site, peu chargée et facile à parcourir, sans défilement global de
+la page; les consultations détaillées et éditions se font en modales accessibles.
+Les contenus longs peuvent défiler dans leur propre région ou dans la modale.
+La parité V1 des pages Connexion/Inscription, y compris la modale de règlement,
+reste inchangée. La présente approbation ne valide pas de maquettes ni de
+rendus. Les valeurs géométriques, breakpoints, dimensions des panneaux et états
+détaillés restent à valider techniquement selon les critères de
+`docs/design/visual-direction.md`, qui incluent désormais des hauteurs courtes.
+Les actifs, usages runtime et sources copiées au package sont inventoriés dans
 `docs/design/media-inventory.md`. Leur provenance et licences fichier par
 fichier ne sont pas établies; ne copier aucun actif V1 avant preuve des droits.
 Aucun rendu V2, capture, contrôle navigateur ou comparaison visuelle V1/V2

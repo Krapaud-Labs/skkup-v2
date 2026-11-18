@@ -8,13 +8,14 @@ Ce dossier décrit le périmètre, les parcours, la conception et les décisions
 | [Stories](product/user-stories.md) | capacités et critères | cadré, parité V1 à inventorier |
 | [Parcours](product/user-flows.md) | étapes et erreurs | cadré |
 | [Architecture](design/architecture.md) | composants et flux | baseline à valider |
+| [Direction visuelle](design/visual-direction.md) | direction Dashboard, densité, défilement et modales | exigences approuvées, rendu à vérifier par lot |
 | [Données](design/data-model.md) | entités, règles et rétention | conceptuel |
 | [Contrats API](design/api-contracts.md) | HTTP et temps réel | à confronter à V1 |
 | [Menaces](security/threat-model.md) | menaces et contrôles | revue initiale |
 | [Décisions](project-management/decision-log.md) | décisions et inconnues | vivant |
 | [Suivi GitHub Projects](project-management/github-project.md) | choix et activation du suivi | pending_activation |
 | [Roadmap](delivery/roadmap.md) | lots ordonnés | cadrage |
-| [Readiness](design/design-readiness.md) | porte avant implémentation | review requise |
+| [Readiness](design/design-readiness.md) | porte avant implémentation | cadrage approved, validations produit par lot |
 | [Cahier archivé](project-management/cahier-des-charges/skkup-v2/) | source immuable | préservée |
 
 ## Limites

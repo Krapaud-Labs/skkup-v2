@@ -1,6 +1,6 @@
 # Journal des décisions de cadrage
 
-Date de mise à jour : 2026-11-16
+Date de mise à jour : 2026-11-18
 Projet : Skkup V2
 Référence produit : dépôt `Krapaud-Labs/Skkup`, branche `dev`, commit
 `fcc4767f3ece9efc069d1a1c413942067cb89c93`, selon le cahier provisoire.
@@ -42,6 +42,7 @@ d’origine ni son archive.
 | D-16 | Tout ticket attribué par une carte à gratter V1 est catégorisé comme ticket classique. | Décision explicite | Réponse propriétaire, 2026-11-16, arbitrage 3 | 2026-11-16 |
 | D-17 | Utiliser un shell Dashboard unique partagé entre Viewer et Admin, avec des sections adaptées au rôle, une navigation cohérente et des permissions Admin vérifiées côté serveur. La décision n’approuve pas à elle seule la palette, les tokens, les layouts détaillés ni les états visuels. | Décision explicite | Réponse propriétaire, 2026-11-16, réponse « oui » à l’espace Dashboard unique avec sections par rôle | 2026-11-16 |
 | D-18 | Valider la candidate visuelle V1 pour la palette et le langage de surface bleu nuit, les accents violet/cyan et un glow discret. Cette approbation ne fixe pas l’agencement, la densité, les breakpoints, les dimensions de panneaux ni les états détaillés, qui restent à valider techniquement. | Décision explicite, portée limitée à la palette et au langage visuel | Réponse propriétaire, 2026-11-16, « Valider la candidate V1 (Recommandé) » | 2026-11-16 |
+| D-19 | Concevoir le Dashboard partagé dans le thème du site avec une présentation professionnelle, peu chargée et facile à parcourir. La page ne défile pas globalement; détails et éditions s’ouvrent dans des modales accessibles, dont le contenu peut défiler indépendamment si nécessaire. Cette décision ne modifie pas la parité V1 des pages Connexion/Inscription ni la modale d’acceptation du règlement. | Décision explicite | Réponse propriétaire, 2026-11-18, demande de prise en compte du Dashboard | 2026-11-18 |
 
 ## Barème approuvé issu de l’image
 

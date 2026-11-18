@@ -1,8 +1,8 @@
 ---
 status: draft
-last_updated: 2026-11-14
+last_updated: 2026-11-18
 owner: Coordinateur
-work_item: 2026-11-14-initialisation-cadrage-v2
+work_item: 2026-11-18-chain-issues-5-6-8-9
 ---
 
 # Modèle de données cible de Skkup V2
@@ -13,13 +13,42 @@ Ce document propose un modèle conceptuel d’après le cahier actif et le
 profil. Ce n’est ni un schéma SQL ni la preuve que les tables V1 ont été
 vérifiées dans cette passe.
 
-Le lot #5 ajoute actuellement au schéma V2 les tables `users` et
-`auth_sessions` via Alembic, avec `password_hash`, rôle, état actif,
-`session_version`, date d'acceptation du règlement et dates de session,
-expiration et révocation. Cette mise à jour documentaire décrit l'artefact
-présent; elle ne certifie pas sa migration en environnement, son audit ni sa
-parité complète avec le schéma V1. Les tables d'appairage et de visionnage ne
-sont pas livrées dans #5 et restent dépendantes du lot #7.
+La migration #5 `0002_member_auth` crée les tables `users` et `auth_sessions`;
+elle contient déjà `users.points_balance`, `current_streak`, `max_streak` et
+`last_visit_at`. Le lot #6 réutilise ces colonnes. Sa migration
+`0003_viewer_points` ajoute uniquement les tables `points_transactions`,
+`daily_checkins`, `scratch_card_grants` et `reward_tickets`. Cette mise à jour
+décrit les artefacts du code sur la branche #6; elle ne certifie pas une
+migration ou une concurrence en environnement PostgreSQL, ni une parité
+complète avec le schéma V1. Les tables d'appairage et de visionnage ne sont
+pas livrées dans #6 et restent au lot #7.
+
+### Sous-ensemble physique implémenté par le lot #6
+
+- `points_transactions`: entrée signée avec `amount`, `balance_after`, `type`,
+  clé d'idempotence et horodatage; unicité par utilisateur et clé, types
+  autorisés par contrainte, index utilisateur/date. Le service verrouille le
+  compte, refuse un solde négatif et modifie solde et ledger dans la même
+  transaction.
+- `daily_checkins`: date métier, streak après check-in, maximum, solde observé
+  et indicateur de grant carte; contrainte unique par utilisateur/jour métier.
+- `scratch_card_grants`: droit à une carte obtenu à un check-in de palier;
+  unique par check-in. Il ne stocke pas de résultat de grattage ni d'état de
+  révélation.
+- `reward_tickets`: catégorie, origine, identifiant source, clé d'idempotence,
+  date d'émission et éventuelle date de consommation; contraintes sur les
+  catégories et origines ainsi qu'une unicité utilisateur/clé. #6 n'implémente
+  pas encore la consommation dans un tirage.
+
+Validation rapportée: QA indique 14 tests ciblés passés et Ruff PASS; les
+tests couvrent l'isolation Viewer, replay quotidien, rollback, cohérence du
+ledger et règles D-14 à D-16. Le test de migration vérifie le DDL et les
+contraintes d'unicité avec SQLite. Ces éléments n'établissent pas la
+concurrence multiprocessus PostgreSQL ni l'exécution de la migration sur
+PostgreSQL. La livraison #6 reste sur sa branche en attente de PR/CI/fusion.
+Dans l'interface, le Dashboard traduit les codes de type de transaction connus
+en libellés français (par exemple `WATCH_TIME` en « Temps de visionnage »); le
+contrat REST conserve le code dans le champ `type`.
 
 - **Décisions de stack :** PostgreSQL, SQLAlchemy 2 et Alembic.
 - **Décision de données :** démarrer sur une base V2 vide, sans migration
@@ -79,9 +108,10 @@ relisant le commit de référence avant le scaffold.
 | Appairage | Code temporaire, appareil apparié | Usage unique, expiration, révocation; concurrence de consommation protégée | Credential distinct de la session web; empreinte plutôt que valeur claire |
 | Plateformes | Stream/catalogue, compte lié si nécessaire | Unicité plateforme + identifiant; désactivation sans perte d’historique utile | Aucun OAuth de plateforme ajouté dans ce périmètre |
 | Visionnage | Session, heartbeats, durée validée | Mesure côté serveur; état contrôlé; pas de double crédit lors des retries | Activité à minimiser et rétention à définir |
-| Points | Transaction de ledger, solde/cache éventuel | Crédit/débit atomique, traçable et idempotent; plafond journalier côté serveur | Barème selon les décisions acceptées, pas de valeur inventée |
-| Visites/progression | Check-in, streak et paliers | Une visite par période qualifiée; transition atomique des paliers | Fuseau horaire/frontière de journée à confirmer sur les règles actives |
-| Cartes | Carte à gratter et résultat | Révélation unique; résultat persisté avant retour; pas de double gain | Valeurs et probabilités depuis les règles validées |
+| Points, sous-ensemble #6 implémenté | `points_transactions`, `users.points_balance` | Delta et ledger transactionnels, idempotence par utilisateur/clé, solde non négatif; aucun plafond global ajouté | Tests ciblés SQLite PASS; concurrence PostgreSQL non vérifiée |
+| Check-in/progression, sous-ensemble #6 implémenté | `daily_checkins`, champs streak de `users`, `scratch_card_grants` | Unique par utilisateur/jour métier; replay renvoie le résultat stable; grants aux paliers appliqués selon D-08/D-15 | `TZ` configure la journée métier, `Europe/Paris` par défaut; migration/concurrence PostgreSQL non vérifiées |
+| Cartes, grant seulement dans #6 | `scratch_card_grants` | Grant de palier unique par check-in; le résultat, sa révélation et le gain ne sont pas implémentés | À compléter au lot #9 avec les décisions D-08/D-16; ne pas confondre grant et carte jouable |
+| Tickets disponibles, sous-ensemble #6 implémenté | `reward_tickets` | Émission catégorisée et idempotente, inventaire des tickets non consommés | Consommation, tirages et résultats non implémentés; aucun lancement public |
 | Tirages | Tirage, lot, ticket, gagnant et audit | Émission traçable; sélection unique; statut et résultat persistés ensemble | Résultat justifiable sans révéler de secrets |
 | Boutique | Article, commande, code numérique | Instantané de l’article acheté; idempotence; stock/limites/solde contrôlés; attribution atomique | Codes chiffrés au repos; clé externe et versionnée |
 | Contenu | Annonce, contenu éditorial, version | Brouillon distinct de publication; archivage sans effacer l’historique requis | Données libres filtrées contre l’injection |
@@ -151,7 +181,7 @@ la production n’a été effectué pour ce document.
 |---|---|---|
 | Tables, colonnes, relations, index et contraintes V1 | Commit du dépôt de référence cité dans le cahier, schéma et migrations | Non relu |
 | Idempotence des points, cartes, achats et tickets | Code et tests V1 | Non vérifiée |
-| Fuseau et frontière du check-in/plafond quotidien | Règles métier et tests actifs | À confirmer |
+| Fuseau et frontière du check-in | `backend/app/timezone.py`, tests #6 et configuration `TZ` | Code: `Europe/Paris` par défaut, surcharge par `TZ`; frontière PostgreSQL/concurrence non vérifiée |
 | Probabilités et valeurs de récompenses complémentaires | Règles actives et décisions du propriétaire | À extraire; ne pas inventer |
 | Données de production à conserver | Inventaire en lecture seule et décision explicite | Non vérifié; pas de migration implicite |
 | Rétention/export/suppression | Revue métier et conformité applicable | À définir avant activation publique |
@@ -159,7 +189,8 @@ la production n’a été effectué pour ce document.
 
 ## Limites
 
-Ce modèle n’est pas le schéma final SQLAlchemy, une migration, une preuve de
-parité avec la V1 ni une déclaration de conformité. Il devra être rapproché
-du commit et des tests de référence avant le scaffold. Aucun code, actif ou
-jeu de données de production n’a été utilisé.
+Ce document conserve le modèle conceptuel pour les domaines à venir; les
+entités marquées #6 décrivent le schéma SQLAlchemy/Alembic réellement présent
+sur la branche de travail. Il ne prouve pas la parité V1, la migration ni la
+concurrence sous PostgreSQL, et n'est pas une déclaration de conformité ou de
+publication. Aucun jeu de données de production n’a été utilisé.

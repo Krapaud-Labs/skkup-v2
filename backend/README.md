@@ -79,14 +79,61 @@ changes/hour. This protects a single service process without adding Redis or
 another service. It is not shared across workers, containers, or restarts; a
 multi-worker/public deployment needs a shared rate limiter before exposure.
 
+## Viewer points and daily progression
+
+The issue #6 backend routes are authenticated from the current session cookie;
+they never accept a user ID from a request body or query:
+
+- `GET /me` preserves the V1 profile response shape.
+- `GET /me/points` returns the points balance, current and maximum streak, next
+  documented streak milestone, and counts of available CLASSIC/PREMIUM reward
+  tickets.
+- `GET /me/points/history?page=1&limit=20` returns the V1 pagination envelope
+  and point transaction field names, filtered to the authenticated Viewer.
+- `GET /me/reward-tickets?page=1&limit=20` lists unassigned reward tickets.
+- `POST /me/daily-checkin` uses the session identity and requires an allowlisted
+  `Origin`. It returns a stable replay response for another request on the same
+  Europe/Paris civil day.
+
+The accepted D-14 rule replaces the V1 direct +5 check-in credit with one
+CLASSIC reward ticket, so a daily check-in writes no points ledger entry. D-15
+adds +1 CLASSIC on streak day 3, +2 CLASSIC on day 7, +2 CLASSIC and +1 PREMIUM
+on day 14, and +2 CLASSIC and +2 PREMIUM on day 30. These awards are in
+addition to the daily CLASSIC ticket. The V1 streak scratch-card grants at
+days 3, 7, 14 and 30 are recorded atomically as available grants. V1's
+preselected TICKET result on card grants at multiples of 10 after day 30 is
+preserved as grant metadata, without adding D-07 tickets.
+No scratch outcome is selected in this lot. D-16 is enforced by the shared
+ticket-award service, which categorizes a future scratch-card ticket as
+CLASSIC. Ticket reveal, random selection and conversion to a raffle entry are
+reserved for issue #9. Reward tickets are inventory records distinct from
+raffle entries; this lot does not consume them or implement purchases.
+
+Point changes use a transaction ledger with signed amounts, a recorded
+post-change balance, and a per-user idempotency key. Zero-point activity rows
+remain representable for V1-compatible scratch outcomes. The user balance
+update and ledger row are written in one transaction; negative balances are
+rejected, and no global or daily point cap is introduced. The ledger and ticket
+inventory are separate so ticket awards cannot be mistaken for points.
+
+For idempotent daily check-in, V2 uses a unique `(user_id, local_day)` event,
+locks the user row during the operation, and commits the streak, card grant and
+ticket awards together. A repeated request returns the stored ticket and card
+IDs without another reward. This differs from V1's duplicate-check-in HTTP 409
+response but keeps the award effect unique and makes retries safe. The
+`scratch_card_grants` table records only entitlements, not scratch results or
+animation state; issue #9 owns those mechanics.
+
 ## Migration
 
 After setting the database environment, apply the schema with the repository's
 Alembic configuration. Migration `0002_member_auth` creates the new `users`
-and `auth_sessions` tables on top of the empty V2 baseline. It does not import
+and `auth_sessions` tables; `0003_viewer_points` adds the point ledger,
+idempotent daily check-ins, scratch-card grant events and reward-ticket
+inventory. These migrations build on the empty V2 baseline and do not import
 or modify V1 or production data.
 
-## Auth contract checks
+## Backend contract checks
 
 Run the dependency-free API contract checks from the repository root:
 
@@ -94,18 +141,20 @@ Run the dependency-free API contract checks from the repository root:
 PYTHONPATH=backend uv run --project backend --locked --no-sync python -m unittest discover -s backend/tests -p 'test_*.py'
 ```
 
-These checks drive the FastAPI ASGI app directly and use an in-memory SQLite
-database. They cover request validation, registration and consent, session
+These checks drive the FastAPI ASGI app and points service with in-memory
+SQLite. They cover request validation, registration and consent, session
 cookies, the Viewer profile, login errors, logout and password-change
-revocation, exact Origin checks and credentialed CORS preflight. They do not
-replace a PostgreSQL deployment test or browser/UI and visual verification.
+revocation, exact Origin checks, credentialed CORS preflight, daily reward
+idempotence, D-14/D-15 categories, D-16 scratch-ticket categorization, point
+ledger/balance coherence, rollback and user/day uniqueness. They do not replace
+a PostgreSQL concurrency/migration test or browser/UI and visual verification.
 
-For issue #5, the latest local run completed all five auth contract/unit tests,
-including the civil-day rollover check. Ruff over
-`backend/app`, `backend/migrations` and `backend/tests` pass. The local
-PostgreSQL/Compose migration check remains unverified because access to the
-Docker socket was denied in that QA environment. Form UI, navigation, keyboard
-behavior and screenshots also remain outside these API contract checks.
+The issue #5 and #6 backend suites run through the command above. Ruff over
+`backend/app`, `backend/migrations` and `backend/tests` is required. SQLite
+checks cover rollback and the unique same-day constraint; actual parallel
+PostgreSQL locking and Compose migration execution remain deployment/CI checks.
+Form UI, navigation, keyboard behavior and screenshots remain outside these
+API contract checks.
 
 ## Current limits
 

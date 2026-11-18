@@ -499,23 +499,32 @@ détaillés restent à valider techniquement selon les critères de
 Les actifs, usages runtime et sources copiées au package sont inventoriés dans
 `docs/design/media-inventory.md`. Leur provenance et licences fichier par
 fichier ne sont pas établies; ne copier aucun actif V1 avant preuve des droits.
-La comparaison Chromium Auth V1/V2 réalisée après le cadrage ne valide pas le
-Dashboard : aucun rendu ni capture Dashboard n'est consigné ici. Les écarts
-Auth estimés sont environ 10–20 px sur mobile et 5 px sur la modale selon les
-vues, sans mesure différentielle; le pixel-perfect n'est pas établi. Les revues
-QA et indépendante PASS portent sur les critères de cadrage, et non sur une
-parité produit générale. Les validations de layout, responsive, contrastes et
-comparaison visuelle des domaines restants devront être exécutées dans leurs
-lots. La palette approuvée ne constitue pas une preuve de rendu ou de parité.
+La comparaison Chromium Auth V1/V2 réalisée après le cadrage ne constitue pas
+une comparaison de parité Dashboard. Au moment de l'approbation du cadrage,
+aucun rendu Dashboard n'était disponible. Depuis, le lot #6 a produit des
+captures V2 du Dashboard avec fixture à 1440×700, 390×844 et 390×650; QA a
+donné GO pour le layout, l'absence de scroll global, le mobile sans clipping
+et la cohérence plum/navy, violet-magenta et cyan. Les mesures 1440×700
+indiquent document/body/shell à 1440×700, panneaux terminant à y=675; sur
+mobile, cartes et panneaux restent dans x=16–374 et le document/body mesure
+390 px de large sans scroll global. L'Auditeur a donné GO au sous-ensemble
+filtré Dashboard/README. Ces preuves ne constituent pas une comparaison
+Dashboard V1/V2, ne certifient pas la readiness globale produit et ne couvrent
+pas les layouts ou parcours restants. Les écarts Auth estimés restent environ
+10–20 px sur mobile et 5 px sur la modale selon les vues, sans mesure
+différentielle; le pixel-perfect n'est pas établi. Les validations restantes
+sont exécutées dans leurs lots. La palette approuvée, à elle seule, ne prouve
+pas un rendu ou la parité.
 
 La revalidation visuelle Auth après correction des marqueurs correspond aux
 captures V1 sur la présence des puces (masquées dans le rendu V1 par le reset
 Tailwind) et leur retrait; la scrollbar violette du dialogue reste visible en
 V2 seulement. Le CTA reste accessible après défilement du document mobile et
 les tabulations demeurent confinées à la modale. Le flux Auth redirige vers
-`/dashboard`, route attendue au lot #6, et ne peut pas être considéré comme un
-parcours autonome complet avant cette intégration. Les preuves de livraison
-et limites actuelles sont consignées dans le README et le work item #5.
+`/dashboard`, désormais implémenté sur la branche du lot #6. Cette branche
+n'est pas encore fusionnée; le parcours Auth→Dashboard attend la livraison #6
+vers `dev`. Les preuves de livraison et limites sont consignées dans le README
+et le work item actif.
 
 D-17 et D-18 ne modifient pas les décisions de récompenses D-07/D-08 et ne
 clôturent pas les validations de rendu, layout/responsive, parité ou audit
@@ -526,7 +535,8 @@ Les décisions propriétaire, dont D-17 et D-18, sont consignées dans
 `docs/project-management/decision-log.md`. Les chemins V1 cités sont des
 références source; la comparaison Auth documentée ici ne revendique pas une
 parité pixel-perfect ou la parité d'autres domaines. La relecture indépendante
-du cadrage est PASS; le Dashboard reste à comparer quand son rendu existera.
+du cadrage est PASS; le Dashboard possède maintenant un rendu V2 revu selon
+les critères du lot #6, mais sa comparaison avec la référence V1 reste à faire.
 Les inconnues techniques et de déploiement sont affectées aux lots concernés,
 sans révoquer l’approbation du cadrage.
 
@@ -544,4 +554,6 @@ arbitrages D-14 à D-16; QA PASS sur la direction Dashboard D-17/D-18; Auditeur
 PASS indépendant; scan des marqueurs PASS. Aucun test V2, build, parcours
 navigateur, comparaison visuelle, mesure responsive/contraste ou test négatif
 d’accès Admin n’est déclaré exécuté au moment de cette approbation. Depuis,
-les contrôles Auth #5 sont documentés dans la section d'état du lot ci-dessus.
+les contrôles Auth #5 et le sous-ensemble Dashboard #6 sont documentés dans
+les sections d'état ci-dessus; cela ne clôt pas les préconditions des lots
+produit restants.

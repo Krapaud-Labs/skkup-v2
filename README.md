@@ -1,6 +1,6 @@
 # Skkup V2
 
-Nouvelle base applicative publique pour la plateforme Skkup. Le dépôt contient le cadrage et les documents de conception; l’API V2 fournit maintenant le premier lot d’authentification membre, tandis que les autres domaines produit restent à construire.
+Nouvelle base applicative publique pour la plateforme Skkup. Le dépôt contient le cadrage et les documents de conception; l’API V2 fournit l’authentification membre et les premiers services de progression Viewer. Les domaines tirages, administration et extension restent à construire.
 
 ## Périmètre
 
@@ -12,10 +12,15 @@ La couverture statique vérifiable de la référence V1 au commit `fcc4767f3ece9
 
 - API : FastAPI 0.163.1 sur Uvicorn 0.54.0, avec contrôles de santé et routes
   d’authentification `/auth/register`, `/auth/login`, `/auth/session`,
-  `/auth/logout` et `/auth/password`.
+  `/auth/logout` et `/auth/password`, ainsi que les services Viewer `/me`,
+  `/me/points`, `/me/points/history`, `/me/reward-tickets` et
+  `/me/daily-checkin`.
 - Interface : Next.js 16.4.6 avec React 19.3.0. Les pages `/connexion` et
   `/inscription` présentent les formulaires d'authentification; l'inscription
-  ouvre le règlement du jeu dans une modale avant le consentement.
+  ouvre le règlement du jeu dans une modale avant le consentement. La route
+  `/dashboard` présente, après connexion, le solde Viewer, sa série, ses tickets,
+  sa progression et son activité récente. L’historique et le compte s’ouvrent
+  dans des modales accessibles.
 - Base de données : PostgreSQL 18.6.
 - Migrations : Alembic 1.20.1 et SQLAlchemy 2.0.57, avec Psycopg 3.3.9.
 - Runtime du conteneur : Python 3.13.18.
@@ -24,11 +29,12 @@ La couverture statique vérifiable de la référence V1 au commit `fcc4767f3ece9
   une migration de démarrage.
 - CI : GitHub Actions sur les pull requests vers `dev`.
 
-Compose initialise une base locale dédiée et vide, applique Alembic jusqu’à
-`0002_member_auth`, puis démarre l'API et l'interface web. Le schéma comprend
-les comptes Viewer et les sessions web révocables. Les points, tirages,
-récompenses, autorisations Admin et migration de données V1 ne sont pas
-implémentés. Le changement de mot de passe incrémente `session_version` et
+Compose initialise une base locale dédiée et vide, applique les migrations
+Alembic, puis démarre l'API et l'interface web. Le schéma comprend les comptes
+Viewer, les sessions web révocables, le ledger de points, les séries de
+connexion et l’inventaire des tickets. Les routes Viewer requièrent une session
+authentifiée; le check-in quotidien est idempotent. Le changement de mot de
+passe incrémente `session_version` et
 révoque les sessions web; la révocation des appairages d’extension et des
 sessions de visionnage reste à intégrer avec le lot #7. L’authentification est
 un premier lot de développement et ne constitue pas une configuration de
@@ -50,9 +56,14 @@ y=920 est devenu entièrement visible après `scrollY=175`. Vingt pressions Tab
 sont restées dans la modale sans soumettre le formulaire. Les listes du
 règlement restent sans puces visibles comme dans la capture V1. Une scrollbar
 violette est encore visible dans la modale V2 alors qu'elle ne l'est pas sur la
-capture V1. La redirection après authentification vise `/dashboard`, qui sera
-fourni dans le lot #6 et n'existe pas encore dans ce checkpoint. La parité
-fonctionnelle complète reste à vérifier.
+capture V1. La route Dashboard existe désormais et est liée à l’API de
+progression Viewer. La parité fonctionnelle complète reste à vérifier.
+
+Le Dashboard reprend le langage visuel de la vitrine d’authentification : fonds
+plum et bleu nuit, accents violet-magenta et cyan, avec des halos discrets. Il
+regroupe les indicateurs en quelques panneaux, tient sans défilement global aux
+formats vérifiés et réserve les détails du compte et de l’historique aux
+modales; les listes longues défilent à l’intérieur de leur modale.
 
 ## Prérequis
 
@@ -209,7 +220,7 @@ Ils sont servis tels que fournis, avec leur canal alpha. Le frontend peut les af
 
 ## Limites actuelles
 
-Ce dépôt contient uniquement le scaffold technique et n'inclut pas encore les fonctionnalités produit ni une procédure de déploiement. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration de données ni création de secret. Il interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. Les références visuelles, rendus navigateur, état d'exécution et publication effective des routes ou médias ne sont pas validés par l'inventaire statique.
+Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Les tirages, l’expérience de grattage, les récompenses attribuées, les actions Admin et la reprise des données V1 restent à construire ou à valider dans leurs lots dédiés. Il interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
 
 Le cadrage de conception est `approved` depuis le 2026-11-16, après revue Produit, QA, audit indépendant et scan des marqueurs. Cette approbation autorise la planification des lots; elle ne certifie pas une application V2 ni l'exécution de tests ou contrôles visuels. Les lots doivent conserver leurs préconditions : comparaison de rendus et responsive/contrastes mesurés, tests V2, tests négatifs d’accès Admin côté serveur, preuve de droits avant copie de médias et décisions données/production/publication avant release.
 

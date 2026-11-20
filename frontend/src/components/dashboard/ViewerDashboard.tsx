@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { ScratchTicketCenter } from "@/components/dashboard/ScratchTicketCenter";
+import { ViewerRaffleCenter } from "@/components/dashboard/ViewerRaffleCenter";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 type Profile = { pseudo: string; email: string; role: string };
@@ -30,6 +32,8 @@ export function ViewerDashboard() {
   const [fullHistory, setFullHistory] = useState<Transaction[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [modal, setModal] = useState<"account" | "history" | null>(null);
+  const [scratchOpen, setScratchOpen] = useState(false);
+  const [raffleOpen, setRaffleOpen] = useState(false);
   const [error, setError] = useState("");
   const modalTrigger = useRef<HTMLElement | null>(null);
   const modalClose = useRef<HTMLButtonElement>(null);
@@ -105,14 +109,14 @@ export function ViewerDashboard() {
   const classic = summary?.ticketsDisponibles.CLASSIC ?? 0;
   const premium = summary?.ticketsDisponibles.PREMIUM ?? 0;
   return (
-    <DashboardShell role="VIEWER" profileName={profile?.pseudo} modalOpen={modal !== null} onAccountClick={(event) => { modalTrigger.current = event.currentTarget; setModal("account"); }}>
+    <DashboardShell role="VIEWER" profileName={profile?.pseudo} modalOpen={modal !== null || scratchOpen || raffleOpen} onAccountClick={(event) => { modalTrigger.current = event.currentTarget; setModal("account"); }}>
       <div className="vd-content">
-        <section className="vd-welcome" aria-labelledby="vd-title"><div><p className="vd-eyebrow">TON ESPACE PERSONNEL</p><h1 id="vd-title">Bonjour{profile?.pseudo ? `, ${profile.pseudo}` : ""} <span aria-hidden="true">✦</span></h1><p className="vd-subtitle">Chaque jour compte. Continue sur ta lancée !</p></div><div className="vd-date"><span className="vd-date-icon" aria-hidden="true">◷</span><span>Ta progression<br /><strong>en un coup d’œil</strong></span></div></section>
+        <section className="vd-welcome" aria-labelledby="vd-title"><div><p className="vd-eyebrow">TON ESPACE PERSONNEL</p><h1 id="vd-title">Bonjour{profile?.pseudo ? `, ${profile.pseudo}` : ""} <span aria-hidden="true">✦</span></h1><p className="vd-subtitle">Chaque jour compte. Continue sur ta lancée !</p></div><button type="button" className="vd-date vd-raffle-launch" aria-haspopup="dialog" onClick={(event) => { modalTrigger.current = event.currentTarget; setRaffleOpen(true); }}><span className="vd-date-icon" aria-hidden="true">✧</span><span>Concours<br /><strong>1 participation · 2 500 pts</strong></span><b aria-hidden="true">↗</b></button></section>
         {error && <p className="vd-error" role="alert">{error}</p>}
         <section className="vd-stats" aria-label="Résumé de progression">
           <article className="vd-card vd-points"><div className="vd-card-label"><span className="vd-icon vd-icon-violet">✦</span><span>Solde de points</span></div><div className="vd-number">{summary?.soldePoints ?? "—"}<small> pts</small></div><p className="vd-card-foot">Tes points cumulés</p><div className="vd-orbit" aria-hidden="true">✦</div></article>
           <article className="vd-card vd-streak"><div className="vd-card-label"><span className="vd-icon vd-icon-cyan">♨</span><span>Série actuelle</span></div><div className="vd-number">{summary?.streakActuel ?? "—"}<small> jours</small></div><p className="vd-card-foot">Record personnel : <strong>{summary?.streakMax ?? "—"} jours</strong></p><div className="vd-streak-track"><i /><i /><i /><i /><i /><i /><i /></div></article>
-          <article className="vd-card vd-tickets"><div className="vd-card-label"><span className="vd-icon vd-icon-gold">♧</span><span>Tickets à gratter disponibles</span></div><div className="vd-ticket-counts"><div><strong>{classic}</strong><span>CLASSIC</span></div><b aria-hidden="true">·</b><div><strong>{premium}</strong><span>PREMIUM</span></div></div><p className="vd-card-foot">Inventaire CLASSIC &amp; PREMIUM</p><div className="vd-ticket-art" aria-hidden="true">✧</div></article>
+          <button type="button" className="vd-card vd-tickets vd-ticket-card" aria-haspopup="dialog" aria-label={`Ouvrir mes tickets à gratter, ${classic} CLASSIC et ${premium} PREMIUM`} onClick={(event) => { modalTrigger.current = event.currentTarget; setScratchOpen(true); }}><span className="vd-card-label"><span className="vd-icon vd-icon-gold">♧</span><span>Tickets à gratter disponibles</span></span><span className="vd-ticket-counts"><span><strong>{classic}</strong><span>CLASSIC</span></span><b aria-hidden="true">·</b><span><strong>{premium}</strong><span>PREMIUM</span></span></span><span className="vd-card-foot">Voir et gratter mes tickets <b aria-hidden="true">↗</b></span><span className="vd-ticket-art" aria-hidden="true">✧</span></button>
         </section>
         <section className="vd-lower">
           <article className="vd-panel vd-progress"><div className="vd-panel-heading"><div><p className="vd-eyebrow">RÉGULARITÉ RÉCOMPENSÉE</p><h2>Ta progression</h2></div><span className="vd-flame" aria-hidden="true">♨</span></div><div className="vd-progress-copy"><div><strong>{summary?.streakActuel ?? 0} <small>jours de suite</small></strong><span>Prochain palier : <b>{summary?.prochainPalierStreak ?? "—"} jours</b></span></div><span className="vd-next">✦</span></div><div className="vd-progress-line"><span style={{ width: `${summary?.prochainPalierStreak ? Math.min(100, ((summary.streakActuel ?? 0) / summary.prochainPalierStreak) * 100) : 0}%` }} /></div><p className="vd-milestone">Reviens chaque jour pour débloquer des tickets à gratter bonus.</p></article>
@@ -121,6 +125,8 @@ export function ViewerDashboard() {
         <footer className="vd-footer"><span>Fais de chaque jour une occasion de gagner.</span><span>SKKUP <i>•</i> TON UNIVERS, TES RÈGLES</span></footer>
       </div>
       {modal && typeof document !== "undefined" && createPortal(<div className="vd-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}><section className="vd-modal" role="dialog" aria-modal="true" aria-labelledby="vd-modal-title" data-dashboard-modal><button ref={modalClose} className="vd-modal-close" onClick={closeModal} aria-label="Fermer">×</button>{modal === "account" ? <><p className="vd-eyebrow">ESPACE PERSONNEL</p><h2 id="vd-modal-title">Mon compte</h2><div className="vd-profile-line"><span className="vd-avatar">{profile?.pseudo.slice(0, 1).toUpperCase()}</span><div><strong>{profile?.pseudo}</strong><span>{profile?.email}</span></div></div><button className="vd-modal-secondary" onClick={async () => { try { await api("/auth/logout", { method: "POST" }); } finally { window.location.assign("/connexion"); } }}>Se déconnecter</button></> : <><p className="vd-eyebrow">TES POINTS</p><h2 id="vd-modal-title">Historique complet</h2><div className="vd-history-list">{historyLoading ? <p className="vd-empty">Chargement de ton historique…</p> : fullHistory?.length ? fullHistory.map((item) => <div key={item.id}><span><strong>{transactionTitle(item)}</strong><small>{transactionDate(item) ? new Date(transactionDate(item)!).toLocaleString("fr-FR") : ""}</small></span><b className={item.montant >= 0 ? "positive" : "negative"}>{item.montant > 0 ? "+" : ""}{item.montant} pts</b></div>) : <p className="vd-empty">Aucune transaction pour le moment.</p>}</div></>}</section></div>, document.body)}
+      <ScratchTicketCenter open={scratchOpen} onClose={() => { setScratchOpen(false); requestAnimationFrame(() => modalTrigger.current?.focus()); }} onPointsChanged={() => { void refresh(); }} />
+      <ViewerRaffleCenter open={raffleOpen} onClose={() => { setRaffleOpen(false); requestAnimationFrame(() => modalTrigger.current?.focus()); }} onPointsChanged={() => { void refresh(); }} />
     </DashboardShell>
   );
 }

@@ -14,9 +14,9 @@ API cible REST JSON/OpenAPI avec FastAPI/Pydantic. La compatibilité Socket.IO d
 | Domaine | Consommateur | Responsabilité | Autorisation à spécifier | Preuve avant implémentation |
 | --- | --- | --- | --- | --- |
 | Authentification/session | site | ouvrir, terminer, consulter une session, changer le mot de passe | compte concerné, anti-abus, origine autorisée | 5 tests Auth et Ruff passent; comparaison visuelle V1/V2 effectuée sur captures, parité fonctionnelle complète et PostgreSQL/Docker en attente |
-| Profil/activité | site | profil, solde, ledger, progression, inventaire des tickets | propriétaire du compte | #6: routes Viewer implémentées sur la branche feature; merge vers `dev` en attente |
+| Profil/activité | site | profil, solde, ledger, progression, inventaire des tickets | propriétaire du compte | #6: routes Viewer fusionnées dans `dev` via PR #15 |
 | Appairage/visionnage | extension | lier appareil, envoyer activité admissible | jeton révocable | routes, payloads, plateformes |
-| Récompenses/tirages | site | dépenser, tirer, historiser | rôle Viewer et états métier | transactions et auditabilité |
+| Récompenses/tirages | site | gratter, acheter une participation, tirer, historiser | rôle Viewer/Admin et états métier | #9 implémenté sur la branche feature; QA et audit final avant livraison `dev` |
 | Administration | dashboard Admin | gérer utilisateurs et contenus | rôle/ressource côté serveur | matrice d'accès et journal |
 | Temps réel | site/extension | notifier changements | handshake, rooms isolées | protocole Socket.IO V1 |
 
@@ -130,12 +130,36 @@ complets des champs, validations et réponses figurent dans
 | `POST /admin/raffles`, `PATCH /admin/raffles/{id}` | Crée/édite un tirage ouvert et sa liste complète de lots; hash d'engagement, validation dates et HTTPS, sponsor existant; audit atomique. Le POST crée et publie également l'annonce programmée, dans la même transaction. |
 
 La migration `0009_admin_raffle_configuration` contient la configuration des
-tirages et lots, sans graine secrète, ticket Viewer, résultat ou gagnant.
-`drawAvailability` reste `not_implemented`; la participation Viewer,
-l'attribution des participations au tirage (distinctes des tickets à gratter
-`CLASSIC`/`PREMIUM`) et l'exécution du tirage restent dans l'issue #9.
+tirages et lots; `0010_scratch_and_raffle_draws` ajoute les participations,
+résultats et gagnants. Les réponses Admin exposent les compteurs persistés et
+les états `scheduled`, `available`, `closed`, `drawn` pour chaque tirage ainsi
+que leurs agrégats de liste. Une liste vide rapporte `unavailable`.
 Les contrôles Admin ciblés rapportés incluent les refus anonyme/Viewer,
 l'atomicité et les migrations sous SQLite; ils ne démontrent pas le verrouillage
 concurrent PostgreSQL. Le build frontend passe selon le spécialiste; les
 captures responsive, interactions clavier/modal, audit indépendant, CI et
 fusion de #8 restent en attente.
+
+## Récompenses et tirages Viewer, issue #9
+
+Les règles sont mappées au code V1 épinglé `fcc4767f3ece9efc069d1a1c413942067cb89c93`:
+`scratch-cards.service.ts`, son test `scratch-card-no-win.e2e-spec.ts`,
+`raffles.controller.ts`, `raffles.service.ts`, `raffle-draw.ts`, `tirage.ts`,
+`admin-raffles.controller.ts` et `dto/create-raffle.dto.ts`. D-07 et D-14 à
+D-16/D-20 arbitrent les écarts V2. Les catégories `CLASSIC`/`PREMIUM` sont
+uniquement des tickets à gratter; la participation est une entité distincte
+`raffle_tickets`.
+
+| Méthode et route | Contrat implémenté |
+| --- | --- |
+| `GET /me/scratch-cards`, `GET /me/reward-tickets`, `GET /me/scratch-history` | Inventaires et historique authentifiés, paginés; l'inventaire ne révèle jamais un résultat. |
+| `POST /me/scratch-cards/{id}/prepare`, `POST /me/scratch-cards/{id}/scratch` | Préparation sans fuite de résultat puis révélation V1 persistée une seule fois; gains V1 70/25/5, ticket réorienté vers `RewardTicket` CLASSIC selon D-16, jamais vers `RaffleTicket`. |
+| `POST /me/reward-tickets/{id}/prepare`, `POST /me/reward-tickets/{id}/scratch` | Résultats D-07 CLASSIC persistés avec ledger/ticket atomiques. Les tickets PREMIUM sont temporairement non grattables jusqu'à la décision propriétaire sur le résultat « accès au concours » à 1 %; refus 409 avant RNG, sans mutation ni reroll. |
+| `POST /me/raffles/{id}/register`, `GET /me/raffle-tickets` | Achat d'une participation pour 2 500 points et journal atomiques, une entrée par user/tirage, retry stable; liste personnelle paginée. |
+| `GET /raffles`, `GET /raffles/{id}`, `GET /raffles/{id}/result`, `GET /raffles/{id}/participants?page=0&taille=500` | Vues publiques; résultat et participants accessibles après tirage seulement. Résultat pseudonymisé; participants limités aux ticket IDs, pagination 0-based plafonnée à 2 000. |
+| `POST /admin/raffles/{id}/draw`, `GET /admin/raffles/{id}/history` | Admin persisté, origine autorisée, engagement SHA-256 vérifié, date de tirage atteinte; gagnants, empreinte, résultat et audit écrits atomiquement. La graine dérivée suit V1 `SHA256(graineExploitant:entropiePublique)` et l'algorithme déterministe, sans biais modulo, sans remise. V2 rejoue le résultat stocké seulement si la graine et l'entropie correspondent; l'engagement de graine est comparé en temps constant, les entrées différentes reçoivent 409 et le tirage n'est jamais relancé. V1 répondait 409 à tout second appel. |
+
+L'origine de l'entropie publique n'est pas spécifiée dans V1: l'UI ne doit
+pas en générer une. Les champs de tirage sont fournis par l'Admin (1 à 512
+caractères), le seed opérateur n'est pas persisté et les réponses publiques
+n'exposent ni e-mail ni identifiant utilisateur.

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from test_admin_users import ORIGIN, admin_app, request, test_engine
 
 from app.admin.announcements import Announcement
-from app.admin.models import Raffle, RaffleLot, Sponsor
+from app.admin.models import Raffle, RaffleDrawAudit, RaffleLot, RaffleTicket, RaffleWinner, Sponsor
 from app.admin.raffles import router
 from app.auth.models import AdminAuditEvent, AuthSession, Base, User
 from app.auth.security import COOKIE_NAME, create_session_token
@@ -28,6 +28,9 @@ class AdminRaffleTests(unittest.TestCase):
 
     def setUp(self) -> None:
         with Session(test_engine) as session:
+            session.query(RaffleWinner).delete()
+            session.query(RaffleDrawAudit).delete()
+            session.query(RaffleTicket).delete()
             session.query(RaffleLot).delete()
             session.query(Raffle).delete()
             session.query(Announcement).delete()
@@ -149,7 +152,8 @@ class AdminRaffleTests(unittest.TestCase):
         self.assertNotIn("resultatPublieAt", raffle)
         self.assertNotIn("empreinteParticipants", raffle)
         self.assertNotIn("entropiePublique", raffle)
-        self.assertIsNone(raffle["ticketsDistribues"])
+        self.assertEqual(raffle["ticketsDistribues"], 0)
+        self.assertEqual(raffle["gagnantsCount"], 0)
         self.assertEqual(raffle["lots"][0]["sponsor"]["id"], sponsor_id)
         self.assertNotIn("DRAW_SECRET", body.decode())
 
@@ -174,8 +178,38 @@ class AdminRaffleTests(unittest.TestCase):
         self.assertEqual(feed["items"][0]["id"], raffle["id"])
         self.assertEqual(
             feed["availability"],
-            {"draws": "not_implemented", "tickets": "not_implemented"},
+            {"draws": "scheduled", "tickets": "available"},
         )
+        self.assertEqual(feed["items"][0]["drawAvailability"], "scheduled")
+        self.assertEqual(feed["items"][0]["ticketsAvailability"], "available")
+        self.assertEqual(feed["items"][0]["ticketsDistribues"], 0)
+        self.assertEqual(feed["items"][0]["gagnantsCount"], 0)
+
+        with Session(test_engine) as session:
+            saved = session.get(Raffle, raffle["id"])
+            saved.date_tirage = datetime.now(UTC) - timedelta(seconds=1)
+            session.commit()
+        feed = json.loads(request("GET", "/admin/raffles?page=1&limit=1", headers=headers)[1])
+        self.assertEqual(feed["availability"], {"draws": "available", "tickets": "closed"})
+        self.assertEqual(feed["items"][0]["drawAvailability"], "available")
+        self.assertEqual(feed["items"][0]["ticketsAvailability"], "closed")
+
+        with Session(test_engine) as session:
+            saved = session.get(Raffle, raffle["id"])
+            saved.statut = "TIRE"
+            saved.graine_aleatoire = "b" * 64
+            saved.empreinte_participants = "c" * 64
+            saved.nombre_participants = 0
+            saved.resultat_publie_at = datetime.now(UTC)
+            session.commit()
+        feed = json.loads(request("GET", "/admin/raffles?page=1&limit=1", headers=headers)[1])
+        self.assertEqual(feed["availability"]["draws"], "drawn")
+        self.assertEqual(feed["items"][0]["drawAvailability"], "drawn")
+        history = json.loads(
+            request("GET", f"/admin/raffles/{raffle['id']}/history", headers=headers)[1]
+        )
+        self.assertEqual(history["availability"]["draws"], "drawn")
+        self.assertEqual(history["draws"], [])
         self.assertEqual(request("GET", "/admin/raffles?page=1&limit=101", headers=headers)[0], 422)
 
     def test_admin_updates_only_open_raffles_and_replaces_lots_with_audit(self) -> None:

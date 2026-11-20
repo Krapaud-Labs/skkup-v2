@@ -79,7 +79,7 @@ fi
 
 stage="Alembic head revision assertion"
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
-test "$revision" = "0009_admin_raffle_configuration"
+test "$revision" = "0010_scratch_and_raffle_draws"
 
 stage="Alembic downgrade and empty-schema assertions"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini downgrade base
@@ -90,6 +90,6 @@ test "$product_tables" = "0"
 stage="Alembic re-upgrade assertion"
 "${compose[@]}" run --rm migrate alembic -c alembic.ini upgrade head
 revision="$("${compose[@]}" exec -T db psql -U skkup_v2 -d skkup_v2 -Atc 'SELECT version_num FROM alembic_version;')"
-test "$revision" = "0009_admin_raffle_configuration"
+test "$revision" = "0010_scratch_and_raffle_draws"
 
 echo "Scaffold smoke test passed (isolated project: $project; cleanup removes only its volume)"

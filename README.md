@@ -1,6 +1,6 @@
 # Skkup V2
 
-Nouvelle base applicative publique pour la plateforme Skkup. Le dépôt contient le cadrage et les documents de conception; l’API V2 fournit l’authentification membre et les premiers services de progression Viewer. Les lots #5 Auth/session et #6 points/progression sont fusionnés dans `dev`; la gestion Admin (#8) est en cours, puis suivront les tickets à gratter `CLASSIC`/`PREMIUM` et les participations aux tirages (#9).
+Nouvelle base applicative pour la plateforme Skkup. L’API V2 inclut l’authentification membre, la progression Viewer et l’administration des tirages (#5, #6 et #8 fusionnés dans `dev`). Le lot #9, consacré aux tickets à gratter `CLASSIC`/`PREMIUM` et aux participations distinctes aux tirages, est en cours de livraison vers `dev`.
 
 ## Périmètre
 
@@ -63,10 +63,10 @@ Le Dashboard Viewer/Admin partage un shell et reprend la vitrine : surfaces
 bleu nuit, accents violet et cyan, dégradés et halos discrets. Sa navigation
 reste compacte; les détails et éditions Admin, comme l’historique Viewer,
 s’ouvrent dans des modales, tandis que les listes longues défilent dans leur
-propre région. Le layout Viewer a passé une vérification sans scroll global aux
-formats documentés. L’interface Admin Raffles/Lots est en cours de revue sur la
-branche `feat/issue-8-admin-management`; elle n’est pas encore livrée dans
-`dev`.
+propre région. Les layouts Viewer et Admin Raffles/Lots ont été vérifiés avant
+leur fusion dans `dev` via #15 et #16. Le lot #9 ajoute les parcours Viewer de
+grattage et de participation ainsi que l’exécution Admin des tirages; sa
+validation responsive et clavier est en cours.
 
 ## Prérequis
 
@@ -222,18 +222,19 @@ Les visuels fournis pour les tickets à gratter sont disponibles comme ressource
 Ils sont servis tels que fournis, avec leur canal alpha. Le frontend peut les afficher dans un élément image responsive, en conservant le ratio d’origine (`width: 100%; height: auto`). Ces fichiers sont des éléments visuels uniquement : le parcours de grattage, les probabilités et l’attribution des récompenses ne sont pas implémentés par cet ajout.
 
 Dans le barème D-07 et l’inventaire Viewer, `CLASSIC` et `PREMIUM`
-désignent des tickets à gratter. Une participation à un tirage est une donnée
-distincte. Le code V1 crée une entrée `raffleTicket` pour le résultat de
-grattage « ticket » lorsque le tirage est ouvert. Selon D-16/D-20, V2 attribue
-dans ce cas un ticket à gratter `CLASSIC` et conserve le fallback points V1 si
-aucun tirage n’est ouvert. L’écart d’entité est explicite: `reward_tickets`
-contient les tickets à gratter, tandis que `raffleTicket` représente une
-participation au tirage. « Accès au concours » est un résultat distinct du
-ticket à gratter.
+désignent exclusivement des tickets à gratter, jamais des tickets de
+participation à un tirage. Une participation à un tirage est une donnée
+distincte, stockée dans `raffleTicket`. Dans V1, le résultat de grattage
+« ticket » pouvait créer une participation lorsqu’un tirage était ouvert. La
+décision D-16/D-20 remplace ce comportement en V2: ce résultat attribue un
+ticket à gratter `CLASSIC`, avec le fallback en points si aucun tirage n’est
+ouvert. `reward_tickets` contient les tickets à gratter; seul le parcours
+explicite de participation au concours crée une entrée `raffleTicket`.
+« Accès au concours » est un résultat distinct du ticket à gratter.
 
 ## Limites actuelles
 
-Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Le lot #8 reste en revue sur sa branche: la configuration Admin des tirages et lots est présente, mais l’exécution d’un tirage, l’attribution des participations au tirage (distinctes des tickets à gratter `CLASSIC`/`PREMIUM`), les résultats et l’expérience de grattage relèvent du lot #9. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
+Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Le lot #8, qui configure les tirages et leurs lots côté Admin, est fusionné dans `dev`. Le lot #9 ajoute séparément l’exécution des tirages, leurs participations, leurs résultats et l’expérience de grattage; cette livraison est en cours et n’active pas le produit publiquement. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
 
 Le cadrage de conception est `approved` depuis le 2026-11-16, après revue Produit, QA, audit indépendant et scan des marqueurs. Cette approbation autorise la planification des lots; elle ne certifie pas une application V2 ni l'exécution de tests ou contrôles visuels. Les lots doivent conserver leurs préconditions : comparaison de rendus et responsive/contrastes mesurés, tests V2, tests négatifs d’accès Admin côté serveur, preuve de droits avant copie de médias et décisions données/production/publication avant release.
 

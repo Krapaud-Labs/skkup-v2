@@ -1,6 +1,6 @@
 # Skkup V2
 
-Nouvelle base applicative pour la plateforme Skkup. L’API V2 inclut l’authentification membre, la progression Viewer et l’administration des tirages (#5, #6 et #8 fusionnés dans `dev`). Le lot #9, consacré aux tickets à gratter `CLASSIC`/`PREMIUM` et aux participations distinctes aux tirages, est en cours de livraison vers `dev`.
+Nouvelle base applicative pour la plateforme Skkup. L’API V2 inclut l’authentification membre, la progression Viewer, l’administration des tirages et les parcours de grattage/participation (#5, #6, #8 et #9 fusionnés dans `dev`). La PR #18 a livré le lot #9; le grattage PREMIUM reste suspendu jusqu’à la décision propriétaire sur son résultat « Accès au concours » à 1 % lorsqu’aucun tirage n’est ouvert.
 
 ## Périmètre
 
@@ -64,9 +64,9 @@ bleu nuit, accents violet et cyan, dégradés et halos discrets. Sa navigation
 reste compacte; les détails et éditions Admin, comme l’historique Viewer,
 s’ouvrent dans des modales, tandis que les listes longues défilent dans leur
 propre région. Les layouts Viewer et Admin Raffles/Lots ont été vérifiés avant
-leur fusion dans `dev` via #15 et #16. Le lot #9 ajoute les parcours Viewer de
-grattage et de participation ainsi que l’exécution Admin des tirages; sa
-validation responsive et clavier est en cours.
+leur fusion dans `dev` via #15 et #16. Le lot #9 a ajouté les parcours Viewer de
+grattage et de participation ainsi que l’exécution Admin des tirages; la QA
+responsive et clavier est passée avant sa fusion via PR #18.
 
 ## Prérequis
 
@@ -234,7 +234,7 @@ explicite de participation au concours crée une entrée `raffleTicket`.
 
 ## Limites actuelles
 
-Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Le lot #8, qui configure les tirages et leurs lots côté Admin, est fusionné dans `dev`. Le lot #9 ajoute séparément l’exécution des tirages, leurs participations, leurs résultats et l’expérience de grattage; cette livraison est en cours et n’active pas le produit publiquement. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
+Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Les lots #8 et #9 sont fusionnés dans `dev`; la PR #18 a livré séparément l’exécution des tirages, leurs participations, leurs résultats et l’expérience de grattage. Le parcours PREMIUM reste verrouillé avant tirage aléatoire jusqu’à la décision propriétaire sur le résultat à 1 % « Accès au concours » sans tirage ouvert. Cette livraison n’active pas le produit publiquement. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
 
 Le cadrage de conception est `approved` depuis le 2026-11-16, après revue Produit, QA, audit indépendant et scan des marqueurs. Cette approbation autorise la planification des lots; elle ne certifie pas une application V2 ni l'exécution de tests ou contrôles visuels. Les lots doivent conserver leurs préconditions : comparaison de rendus et responsive/contrastes mesurés, tests V2, tests négatifs d’accès Admin côté serveur, preuve de droits avant copie de médias et décisions données/production/publication avant release.
 

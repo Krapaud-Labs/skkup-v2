@@ -262,8 +262,14 @@ et tirage comme dans V1.
   55–59 +15 et 60–99 un nouveau ticket à gratter CLASSIC. Les valeurs sont
   calculées par `secrets.randbelow(100)` et les tests injectent un RNG local,
   non exposé par l’API.
-- PREMIUM reste verrouillé avant le RNG jusqu’à décision propriétaire sur le
-  résultat « accès au concours » à 1 %. Aucun résultat différé n’est inventé.
+- PREMIUM applique les gains 90 % +30 points, 5 % +40 et 4 % +50. Le résultat
+  « Accès au concours » à 1 % crée une participation `raffle_tickets` distincte
+  et consomme le ticket à gratter PREMIUM dans la même transaction. Seul un
+  tirage actuellement ouvert, pas encore rejoint par le Viewer, est éligible;
+  le plus proche est choisi par date de tirage puis identifiant. S’il n’existe
+  aucun tirage éligible, l’API renvoie 409 avant RNG et ne consomme pas le
+  ticket. L’historique distingue ce gain avec `outcome=RAFFLE_TICKET` et
+  `raffleTicketAwarded=true`; le ticket initial reste de catégorie PREMIUM.
 - Les anciennes cartes de série gardent le tirage V1 70 % points, 25 % rien,
   5 % ticket, avec gains 10/15/25/40 par palier (10 par défaut). Selon D-16,
   le résultat ticket ajoute un ticket à gratter CLASSIC si un tirage est

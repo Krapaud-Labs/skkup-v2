@@ -196,7 +196,7 @@ class RaffleLot(Base):
 
 
 class RaffleTicket(Base):
-    """Paid, one-per-user participation, distinct from scratch reward tickets."""
+    """One-per-user raffle participation, purchased or awarded by a scratch result."""
 
     __tablename__ = "raffle_tickets"
     __table_args__ = (

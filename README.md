@@ -1,6 +1,6 @@
 # Skkup V2
 
-Nouvelle base applicative pour la plateforme Skkup. L’API V2 inclut l’authentification membre, la progression Viewer, l’administration des tirages et les parcours de grattage/participation (#5, #6, #8 et #9 fusionnés dans `dev`). La PR #18 a livré le lot #9; le grattage PREMIUM reste suspendu jusqu’à la décision propriétaire sur son résultat « Accès au concours » à 1 % lorsqu’aucun tirage n’est ouvert.
+Nouvelle base applicative pour la plateforme Skkup. L’API V2 inclut l’authentification membre, la progression Viewer, l’administration des tirages et les parcours de grattage/participation (#5, #6, #8 et #9 fusionnés dans `dev`). La PR #18 a livré le lot #9; son suivi D-21 attribue une participation distincte au tirage admissible sur le résultat PREMIUM « Accès au concours » à 1 %.
 
 ## Périmètre
 
@@ -219,7 +219,7 @@ Les visuels fournis pour les tickets à gratter sont disponibles comme ressource
 - Ticket à gratter `CLASSIC` : `/images/tickets/scratch-classic.png` (PNG RGBA, 1774 × 887 px).
 - Ticket à gratter `PREMIUM` : `/images/tickets/scratch-premium.png` (PNG RGBA, 1774 × 887 px).
 
-Ils sont servis tels que fournis, avec leur canal alpha. Le frontend peut les afficher dans un élément image responsive, en conservant le ratio d’origine (`width: 100%; height: auto`). Ces fichiers sont des éléments visuels uniquement : le parcours de grattage, les probabilités et l’attribution des récompenses ne sont pas implémentés par cet ajout.
+Ils sont servis tels que fournis, avec leur canal alpha, et affichés dans le centre de grattage responsive. Les tickets CLASSIC/PREMIUM suivent le barème D-07; le résultat PREMIUM « Accès au concours » à 1 % attribue une participation distincte au tirage ouvert. Les détails des règles et des contrôles figurent dans [le README backend](backend/README.md).
 
 Dans le barème D-07 et l’inventaire Viewer, `CLASSIC` et `PREMIUM`
 désignent exclusivement des tickets à gratter, jamais des tickets de
@@ -234,7 +234,7 @@ explicite de participation au concours crée une entrée `raffleTicket`.
 
 ## Limites actuelles
 
-Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Les lots #8 et #9 sont fusionnés dans `dev`; la PR #18 a livré séparément l’exécution des tirages, leurs participations, leurs résultats et l’expérience de grattage. Le parcours PREMIUM reste verrouillé avant tirage aléatoire jusqu’à la décision propriétaire sur le résultat à 1 % « Accès au concours » sans tirage ouvert. Cette livraison n’active pas le produit publiquement. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
+Le produit reste en construction et aucune procédure de déploiement n’est fournie. Le cadrage n'autorise aucun accès ou changement à la production, aucune migration des données V1 ni création de secret. Les lots #8 et #9 sont fusionnés dans `dev`; la PR #18 a livré séparément l’exécution des tirages, leurs participations, leurs résultats et l’expérience de grattage. Le suivi D-21 attribue une participation au tirage ouvert éligible sur un résultat PREMIUM à 1 %. Sans tirage ouvert éligible, le grattage est refusé avant RNG sans consommer le ticket. Cette livraison n’active pas le produit publiquement. La reprise des données V1 reste à construire ou à valider dans ses lots dédiés. Le cadrage interdit la copie d'actifs de la V1 ou de la production sans autorisation documentée; les deux tickets ci-dessus ont été fournis par le propriétaire du projet et constituent l'unique exception ajoutée ici. La stratégie de données part d'une base V2 vide; les données de production V1 restent à inventorier avant toute décision de reprise. L’inventaire statique seul ne valide pas le comportement déployé, la parité visuelle complète, ni la publication des routes ou médias.
 
 Le cadrage de conception est `approved` depuis le 2026-11-16, après revue Produit, QA, audit indépendant et scan des marqueurs. Cette approbation autorise la planification des lots; elle ne certifie pas une application V2 ni l'exécution de tests ou contrôles visuels. Les lots doivent conserver leurs préconditions : comparaison de rendus et responsive/contrastes mesurés, tests V2, tests négatifs d’accès Admin côté serveur, preuve de droits avant copie de médias et décisions données/production/publication avant release.
 

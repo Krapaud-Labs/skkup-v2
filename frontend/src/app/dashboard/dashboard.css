@@ -121,10 +121,6 @@ body:has(.viewer-dashboard) { margin: 0; }
 .vd-scratch-reward { min-height: 150px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 20px; border: 1px solid #f1dfb7; border-radius: 16px; color: #49300b; background: radial-gradient(ellipse at 50% 0%,#fff4cb,#f5d780 70%,#e9bd59); text-align: center; box-shadow: inset 0 0 30px #fff8d8; }
 .vd-scratch-reward span { color: #b57e13; font-size: 24px; }.vd-scratch-reward strong { font-size: clamp(18px,3vw,28px); }
 .vd-scratch-error { margin: 10px 0 0; color: #b3465a; font-size: 11px; text-align: center; }
-.vd-premium-notice { margin: 0 0 11px; padding: 9px 10px; border: 1px solid #f0dfbb; border-radius: 10px; color: #795b20; background: #fff9ed; font-size: 10px; line-height: 1.45; }
-.vd-premium-locked { display: flex; flex-direction: column; gap: 3px; flex: none; text-align: right; }
-.vd-premium-locked span { color: #9c741f; font-size: 9px; font-weight: 800; }
-.vd-premium-locked small { color: #9b8f75; font-size: 8px; }
 .vd-raffle-launch { border: 0; padding: 0; color: #8a8da6; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .vd-raffle-launch b { margin-left: 8px; color: #7968df; }
 .vd-raffle-dialog { width: min(100%, 720px); max-height: min(88vh, 760px); display: flex; flex-direction: column; overflow: hidden; padding: 28px; }

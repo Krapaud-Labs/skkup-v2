@@ -10,7 +10,7 @@ const pageSize = 100;
 type Page<T> = { items?: T[]; cards?: T[]; tickets?: T[]; totalPages?: number };
 type StreakCard = { id: string; streakMilestone: number; createdAt: string; prepared: boolean };
 type RewardTicket = { id: string; categorie: "CLASSIC" | "PREMIUM"; origine: string; createdAt: string; prepared: boolean };
-type ScratchHistoryItem = { id: string; sourceType: "LEGACY_CARD" | "REWARD_TICKET"; category: "LEGACY" | "CLASSIC" | "PREMIUM"; streakMilestone: number | null; outcome: string; pointsAwarded: number; scratchTicketsAwarded: number; createdAt: string; scratchedAt: string };
+type ScratchHistoryItem = { id: string; sourceType: "LEGACY_CARD" | "REWARD_TICKET"; category: "LEGACY" | "CLASSIC" | "PREMIUM"; streakMilestone: number | null; outcome: string; pointsAwarded: number; scratchTicketsAwarded: number; raffleTicketAwarded?: boolean; createdAt: string; scratchedAt: string };
 type ScratchHistoryPage = { items: ScratchHistoryItem[]; page: number; totalPages: number; total: number };
 type ScratchItem = {
   id: string;
@@ -21,9 +21,10 @@ type ScratchItem = {
   prepared: boolean;
 };
 type ScratchOutcome = {
-  type: "POINTS" | "NO_WIN" | "SCRATCH_TICKET";
+  type: "POINTS" | "NO_WIN" | "SCRATCH_TICKET" | "RAFFLE_TICKET";
   pointsAwarded: number;
   scratchTicketsAwarded: number;
+  raffleTicketAwarded?: boolean;
 };
 type ScratchResponse = {
   id: string;
@@ -39,7 +40,16 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers: { ...(init?.headers ?? {}) },
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json() as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // Keep the HTTP status when an error response has no JSON body.
+    }
+    throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -60,6 +70,11 @@ function resultLabel(outcome: ScratchOutcome) {
   if (outcome.type === "SCRATCH_TICKET") {
     const count = Math.max(1, outcome.scratchTicketsAwarded);
     return `${count} ticket${count > 1 ? "s" : ""} à gratter CLASSIC`;
+  }
+  if (outcome.type === "RAFFLE_TICKET") {
+    return outcome.raffleTicketAwarded
+      ? "Accès au concours · 1 participation"
+      : "Accès au concours";
   }
   return "Aucun gain cette fois";
 }
@@ -223,8 +238,11 @@ export function ScratchTicketCenter({ open, onClose, onPointsChanged }: ScratchT
     } catch (scratchError) {
       finalizeStartedRef.current = false;
       setPhase("scratch");
-      setError(scratchError instanceof Error && scratchError.message === "HTTP 409"
-        ? "Ce ticket a déjà été gratté. Actualise la liste pour voir les tickets disponibles."
+      const errorMessage = scratchError instanceof Error ? scratchError.message : "";
+      setError(errorMessage.startsWith("HTTP 409")
+        ? item.category === "PREMIUM" && errorMessage.toLocaleLowerCase("fr-FR").includes("concours ouvert")
+          ? "Aucun concours n’est ouvert pour le moment. Ton ticket PREMIUM n’a pas été consommé; tu pourras le gratter plus tard."
+          : "Ce ticket a déjà été gratté. Actualise la liste pour voir les tickets disponibles."
         : "Le gain n’a pas pu être enregistré. Réessaie sans fermer cette fenêtre.");
     }
   }, [onPointsChanged]);
@@ -375,7 +393,6 @@ export function ScratchTicketCenter({ open, onClose, onPointsChanged }: ScratchT
           <h2 id="vd-scratch-title">{tab === "inventory" ? "Mes tickets à gratter" : "Historique des grattages"}</h2>
           <div className="vd-scratch-tabs" role="tablist" aria-label="Tickets à gratter"><button type="button" role="tab" aria-selected={tab === "inventory"} className={tab === "inventory" ? "active" : ""} onClick={() => { setTab("inventory"); setError(""); }}>À gratter</button><button type="button" role="tab" aria-selected={tab === "history"} className={tab === "history" ? "active" : ""} onClick={() => { setTab("history"); void loadScratchHistory(1, false); }}>Historique</button></div>
           {tab === "inventory" && <><p className="vd-scratch-intro">Les tickets CLASSIC et PREMIUM sont à gratter. Ils sont distincts des participations au concours.</p>
-          {availablePremium > 0 && <p className="vd-premium-notice" role="note">Le grattage PREMIUM est temporairement indisponible pendant la validation de son résultat spécial. Tes tickets restent disponibles et aucun gain ni participation n’est attribué pendant cette attente.</p>}
           <div className="vd-scratch-counts" aria-label="Tickets à gratter disponibles">
             <span><strong>{availableClassic}</strong> CLASSIC</span><span><strong>{availablePremium}</strong> PREMIUM</span><span><strong>{items.filter((item) => item.kind === "streak").length}</strong> bonus de série</span>
           </div>
@@ -383,13 +400,13 @@ export function ScratchTicketCenter({ open, onClose, onPointsChanged }: ScratchT
             {loading ? <p className="vd-empty" role="status">Chargement de tes tickets…</p> : items.length ? items.map((item) => <article className="vd-scratch-row" key={`${item.kind}-${item.id}`}>
               <div className={`vd-scratch-row-mark ${item.category === "PREMIUM" ? "premium" : item.kind === "streak" ? "streak" : "classic"}`} aria-hidden="true">{item.category === "PREMIUM" ? "✦" : item.kind === "streak" ? "♨" : "✧"}</div>
               <div className="vd-scratch-row-copy"><strong>{itemLabel(item)}</strong><small>{dateLabel(item.createdAt)}{item.prepared ? " · Prêt à gratter" : ""}</small></div>
-              {item.category === "PREMIUM" ? <div className="vd-premium-locked" aria-label="Grattage Premium temporairement indisponible"><span>En attente</span><small>Grattage temporairement indisponible</small></div> : <button ref={item.id === scratchTriggerRef.current?.dataset.scratchId ? scratchTriggerRef : null} type="button" className="vd-scratch-open" data-scratch-id={`${item.kind}:${item.id}`} onClick={(event) => startScratch(item, event)}>{item.prepared ? "Reprendre" : "Gratter"}<span aria-hidden="true">›</span></button>}
+              <button ref={item.id === scratchTriggerRef.current?.dataset.scratchId ? scratchTriggerRef : null} type="button" className="vd-scratch-open" data-scratch-id={`${item.kind}:${item.id}`} onClick={(event) => startScratch(item, event)}>{item.prepared ? "Reprendre" : "Gratter"}<span aria-hidden="true">›</span></button>
             </article>) : !error && <p className="vd-empty">Tu n’as pas encore de ticket à gratter. Tes prochaines récompenses apparaîtront ici.</p>}
             {error && !loading && <p className="vd-scratch-error" role="alert">{error}</p>}
           </div>
           {!loading && page < totalPages && <button type="button" className="vd-scratch-more" onClick={() => void loadPage(page + 1, true)} disabled={loadingMore}>{loadingMore ? "Chargement…" : "Afficher plus"}</button>}
           </>}
-          {tab === "history" && <><p className="vd-scratch-intro">Résultats des tickets déjà grattés.</p><div className="vd-scratch-list" aria-live="polite" aria-busy={loading}>{loading ? <p className="vd-empty" role="status">Chargement de ton historique…</p> : scratchHistory.length ? scratchHistory.map((entry) => <article className="vd-scratch-row vd-scratch-history-row" key={`${entry.sourceType}-${entry.id}`}><div className={`vd-scratch-row-mark ${entry.category === "PREMIUM" ? "premium" : entry.sourceType === "LEGACY_CARD" ? "streak" : "classic"}`} aria-hidden="true">{entry.category === "PREMIUM" ? "✦" : entry.sourceType === "LEGACY_CARD" ? "♨" : "✧"}</div><div className="vd-scratch-row-copy"><strong>{entry.category === "LEGACY" ? `Bonus de série · ${entry.streakMilestone} jours` : `Ticket à gratter ${entry.category}`}</strong><small>Gratté le {dateLabel(entry.scratchedAt)}</small></div><b className="vd-scratch-history-result">{entry.outcome === "POINTS" ? `+${entry.pointsAwarded} pts` : entry.outcome === "SCRATCH_TICKET" ? `${entry.scratchTicketsAwarded} ticket${entry.scratchTicketsAwarded === 1 ? "" : "s"} CLASSIC` : entry.outcome === "NO_WIN" ? "Aucun gain" : "Résultat non disponible"}</b></article>) : !error && <p className="vd-empty">Aucun ticket gratté pour le moment.</p>}{error && <p className="vd-scratch-error" role="alert">{error}</p>}</div>{historyPage < historyTotalPages && <button type="button" className="vd-scratch-more" disabled={loading} onClick={() => void loadScratchHistory(historyPage + 1, true)}>Afficher plus</button>}</>}
+          {tab === "history" && <><p className="vd-scratch-intro">Résultats des tickets déjà grattés.</p><div className="vd-scratch-list" aria-live="polite" aria-busy={loading}>{loading ? <p className="vd-empty" role="status">Chargement de ton historique…</p> : scratchHistory.length ? scratchHistory.map((entry) => <article className="vd-scratch-row vd-scratch-history-row" key={`${entry.sourceType}-${entry.id}`}><div className={`vd-scratch-row-mark ${entry.category === "PREMIUM" ? "premium" : entry.sourceType === "LEGACY_CARD" ? "streak" : "classic"}`} aria-hidden="true">{entry.category === "PREMIUM" ? "✦" : entry.sourceType === "LEGACY_CARD" ? "♨" : "✧"}</div><div className="vd-scratch-row-copy"><strong>{entry.category === "LEGACY" ? `Bonus de série · ${entry.streakMilestone} jours` : `Ticket à gratter ${entry.category}`}</strong><small>Gratté le {dateLabel(entry.scratchedAt)}</small></div><b className="vd-scratch-history-result">{entry.outcome === "POINTS" ? `+${entry.pointsAwarded} pts` : entry.outcome === "SCRATCH_TICKET" ? `${entry.scratchTicketsAwarded} ticket${entry.scratchTicketsAwarded === 1 ? "" : "s"} CLASSIC` : entry.outcome === "RAFFLE_TICKET" ? "Accès au concours · 1 participation" : entry.outcome === "NO_WIN" ? "Aucun gain" : "Résultat non disponible"}</b></article>) : !error && <p className="vd-empty">Aucun ticket gratté pour le moment.</p>}{error && <p className="vd-scratch-error" role="alert">{error}</p>}</div>{historyPage < historyTotalPages && <button type="button" className="vd-scratch-more" disabled={loading} onClick={() => void loadScratchHistory(historyPage + 1, true)}>Afficher plus</button>}</>}
         </>}
       </section>
     </div>,

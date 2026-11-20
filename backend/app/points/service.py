@@ -5,11 +5,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.admin.models import Raffle
+from app.admin.models import Raffle, RaffleTicket
 from app.auth.models import User
 from app.points.models import DailyCheckin, PointsTransaction, RewardTicket, ScratchCardGrant
 from app.timezone import business_day
@@ -413,13 +413,27 @@ def scratch_reward_outcome(category: str, randbelow=secrets.randbelow) -> tuple[
             return "POINTS", 40, 0
         if roll < 99:
             return "POINTS", 50, 0
-        # The reward category is known, but its participation semantics are
-        # deliberately blocked until the owner resolves the 1% behavior.
-        raise HTTPException(
-            status_code=409,
-            detail="Le gain Premium à 1 % nécessite une décision produit.",
-        )
+        return "RAFFLE_TICKET", 0, 0
     raise ValueError("Unsupported scratch ticket category.")
+
+
+def _open_raffle_for_premium_reward(db: Session, user_id: str, *, now: datetime) -> Raffle | None:
+    """Select and lock the next open draw the Viewer has not joined."""
+    return db.scalar(
+        select(Raffle)
+        .where(
+            Raffle.statut == "OUVERT",
+            Raffle.date_ouverture <= now,
+            Raffle.date_tirage > now,
+            ~exists().where(
+                RaffleTicket.raffle_id == Raffle.id,
+                RaffleTicket.user_id == user_id,
+            ),
+        )
+        .order_by(Raffle.date_tirage, Raffle.id)
+        .limit(1)
+        .with_for_update()
+    )
 
 
 def _scratch_card_view(card: ScratchCardGrant) -> dict:
@@ -584,13 +598,19 @@ def scratch_reward_ticket(
             raise HTTPException(status_code=404, detail="Ticket à gratter introuvable.")
         if ticket.scratched_at is not None or ticket.consumed_at is not None:
             raise HTTPException(status_code=409, detail="Ce ticket a déjà été gratté.")
-        if ticket.category == "PREMIUM":
-            raise HTTPException(
-                status_code=409,
-                detail="Le résultat du ticket Premium nécessite une décision produit.",
-            )
-        outcome, amount, ticket_count = scratch_reward_outcome(ticket.category, randbelow)
         now = datetime.now(UTC)
+        raffle = None
+        if ticket.category == "PREMIUM":
+            user = db.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
+                raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+            raffle = _open_raffle_for_premium_reward(db, user_id, now=now)
+            if raffle is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Aucun concours ouvert éligible pour ce ticket PREMIUM.",
+                )
+        outcome, amount, ticket_count = scratch_reward_outcome(ticket.category, randbelow)
         ticket.prepared_at = ticket.prepared_at or now
         ticket.scratched_at = now
         ticket.consumed_at = now
@@ -599,9 +619,10 @@ def scratch_reward_ticket(
             amount,
             ticket_count,
         )
-        user = db.scalar(select(User).where(User.id == user_id).with_for_update())
-        if user is None:
-            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+        if ticket.category != "PREMIUM":
+            user = db.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
+                raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
         if amount:
             apply_points_change(
                 db,
@@ -612,16 +633,26 @@ def scratch_reward_ticket(
             )
             db.refresh(user)
         created_count = 0
-        for index in range(ticket_count):
-            award_reward_ticket(
-                db,
-                user_id=user_id,
-                category="CLASSIC",
-                source="SCRATCH_CARD",
-                source_id=ticket.id,
-                idempotency_key=f"reward-ticket:{ticket.id}:{index}",
+        if outcome == "SCRATCH_TICKET":
+            for index in range(ticket_count):
+                award_reward_ticket(
+                    db,
+                    user_id=user_id,
+                    category="CLASSIC",
+                    source="SCRATCH_CARD",
+                    source_id=ticket.id,
+                    idempotency_key=f"reward-ticket:{ticket.id}:{index}",
+                )
+                created_count += 1
+        raffle_ticket = None
+        if outcome == "RAFFLE_TICKET":
+            # PREMIUM can only be scratched with an eligible draw, so the
+            # 1% access reward becomes a distinct participation atomically.
+            assert raffle is not None
+            raffle_ticket = RaffleTicket(
+                id=str(uuid4()), raffle_id=raffle.id, user_id=user_id
             )
-            created_count += 1
+            db.add(raffle_ticket)
         db.commit()
         return {
             "id": ticket.id,
@@ -631,6 +662,9 @@ def scratch_reward_ticket(
                 "type": outcome,
                 "pointsAwarded": amount,
                 "scratchTicketsAwarded": created_count,
+                "raffleTicketAwarded": raffle_ticket is not None,
+                "raffleId": raffle_ticket.raffle_id if raffle_ticket else None,
+                "raffleTicketId": raffle_ticket.id if raffle_ticket else None,
             },
             "soldePoints": user.points_balance,
         }
@@ -663,7 +697,10 @@ def scratch_history(db: Session, user_id: str, *, page: int, limit: int) -> dict
             "streakMilestone": c.streak_milestone,
             "outcome": c.outcome_type,
             "pointsAwarded": c.outcome_points or 0,
-            "scratchTicketsAwarded": c.outcome_tickets or 0,
+            "scratchTicketsAwarded": c.outcome_tickets or 0
+            if c.outcome_type == "SCRATCH_TICKET"
+            else 0,
+            "raffleTicketAwarded": c.outcome_type == "RAFFLE_TICKET",
             "createdAt": _datetime_text(c.created_at),
             "scratchedAt": _datetime_text(c.scratched_at),
         }
@@ -676,7 +713,10 @@ def scratch_history(db: Session, user_id: str, *, page: int, limit: int) -> dict
             "streakMilestone": None,
             "outcome": t.outcome_type,
             "pointsAwarded": t.outcome_points or 0,
-            "scratchTicketsAwarded": t.outcome_tickets or 0,
+            "scratchTicketsAwarded": t.outcome_tickets or 0
+            if t.outcome_type == "SCRATCH_TICKET"
+            else 0,
+            "raffleTicketAwarded": t.outcome_type == "RAFFLE_TICKET",
             "createdAt": _datetime_text(t.created_at),
             "scratchedAt": _datetime_text(t.scratched_at),
         }
